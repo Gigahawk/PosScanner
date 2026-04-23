@@ -3,8 +3,8 @@
   perSystem =
     {
       self',
-      config,
       pkgs,
+      system,
       ...
     }:
     let
@@ -19,6 +19,7 @@
             sdk.platformTools
             pkgs.jdk
             (pkgs.android-studio.withSdk sdk.androidComposition.androidsdk)
+            inputs.gradle2nix.packages.${system}.default
           ];
           LANG = "C.UTF-8";
           LC_ALL = "C.UTF-8";
