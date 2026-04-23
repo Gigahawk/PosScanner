@@ -6,8 +6,9 @@
      [this issue comment](https://github.com/NixOS/nixpkgs/issues/355045#issuecomment-2466910779)
      for details
 2. Pick a template, then fill out the project details
-   - Make sure the `Save location` is set to the root of this repo, ignore the
-     warning about the location not being empty
+   - Make sure the `Save location` is set to the `src` folder inside of this
+     repo to avoid clutter (i.e `<repo_root>/src`). Ignore the warning about the
+     directory not being empty.
 3. Wait for the initial background tasks to complete
 4. Try to build the app, if this fails with an error about the SDK directory not
    being writeable:
