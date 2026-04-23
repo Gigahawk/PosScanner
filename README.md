@@ -28,3 +28,11 @@
 8. Run `./update_gradle_lock.sh` inside `src`
 9. In `modules/apk.nix`, make sure the gradle version is set to the same thing
    shown inside Android Studio
+
+## Signing release APKs
+
+### Locally
+
+Run `./build_signed.sh` from inside the devshell. Pass in arguments for an
+`apksigner sign` call, see the
+[apksigner docs](https://developer.android.com/tools/apksigner) for details

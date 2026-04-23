@@ -18,6 +18,7 @@
             sdk.androidSdk
             sdk.platformTools
             pkgs.jdk
+            pkgs.apksigner
             (pkgs.android-studio.withSdk sdk.androidComposition.androidsdk)
             inputs.gradle2nix.packages.${system}.default
           ];
