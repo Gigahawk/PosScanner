@@ -25,6 +25,6 @@
       something
    7. Click `Apply` then `OK`
 7. Wait for the Gradle sync to complete, then try building again
-8. Run `gradle2nix` inside `src`
+8. Run `./update_gradle_lock.sh` inside `src`
 9. In `modules/apk.nix`, make sure the gradle version is set to the same thing
    shown inside Android Studio
