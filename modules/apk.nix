@@ -86,6 +86,13 @@
             mkdir -p $out
             cp app/build/outputs/apk/debug/app-debug.apk $out/${pname}_${version}_debug_unsigned.apk
             cp app/build/outputs/apk/release/app-release-unsigned.apk $out/${pname}_${version}_release_unsigned.apk
+
+            _ZIPALIGN_PATH=$(ls ${sdk.androidSdk}/libexec/android-sdk/build-tools/*/zipalign | head -n1)
+            for f in $out/*.apk; do
+              echo "Ensuring $f is zipaligned"
+              eval "$_ZIPALIGN_PATH -P 16 -f -v 4 $f $f.out"
+              mv "$f.out" "$f"
+            done
           '';
         };
         default = apk;
