@@ -52,6 +52,11 @@
             cp "$REPO_ROOT/local.properties" "$REPO_ROOT/src"
           '';
         };
+        ci = pkgs.mkShell {
+          packages = [
+            pkgs.apksigner
+          ];
+        };
       };
     };
 }
