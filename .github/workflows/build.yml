@@ -1,20 +1,30 @@
 name: build
 on:
   push:
+    branches:
+      - "*"
+    tags:
+      - "*"
   workflow_dispatch:
+  pull_request:
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Whole history/tags are needed to determine version number during build
+      - uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           submodules: true
+      - name: Ensure release tag is on master
+        if: github.ref_type == 'tag'
+        run: git merge-base --is-ancestor ${{ github.ref }} refs/remotes/origin/master
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@v34
         with:
           nix_version: "2.31.2"
       - name: Restore and cache Nix store
-        uses: nix-community/cache-nix-action@v6
+        uses: nix-community/cache-nix-action@v7
         with:
           primary-key: cache-build-${{ runner.os }}-nix-store-${{ hashFiles('**/*.nix') }}
           restore-prefixes-first-match: cache-build-${{ runner.os }}-nix-store-
@@ -26,3 +36,21 @@ jobs:
           name: apks-unsigned
           path: result/*
           if-no-files-found: error
+      - name: Build release outputs
+        if: github.ref_type == 'tag'
+        run: |
+          nix develop -c ./build_signed.sh \
+            --ks <(echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d) \
+            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+            --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.KEY_PASSWORD }}"
+      - name: Create release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            .dist/*_release_signed.*
+          # Always generate as a prerelease, human should manually mark as a full release 
+          prelease: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
