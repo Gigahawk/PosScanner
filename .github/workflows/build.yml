@@ -1,0 +1,28 @@
+name: build
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v34
+        with:
+          nix_version: "2.31.2"
+      - name: Restore and cache Nix store
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: cache-build-${{ runner.os }}-nix-store-${{ hashFiles('**/*.nix') }}
+          restore-prefixes-first-match: cache-build-${{ runner.os }}-nix-store-
+      - name: Build unsigned APKs
+        run: nix build
+      - name: Upload unsigned APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: apks-unsigned
+          path: result/*
+          if-no-files-found: error
