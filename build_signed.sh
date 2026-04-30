@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+shopt -s nullglob
 
 OUTDIR=".dist"
 
@@ -10,7 +11,21 @@ echo "===Building unsigned APK==="
 rm -f result
 nix build .#apk
 
-unsigned_name=$(ls result | grep "_release_unsigned.apk")
+apk_files=(result/*_release_unsigned.apk)
+
+if ((${#apk_files[@]} < 1)); then
+  echo "===Unsigned release APK not found in result==="
+  ls result
+  exit 1
+fi
+
+if ((${#apk_files[@]} > 1)); then
+  echo "===Warning: multiple release APKs found in result==="
+  echo "===Using first APK found==="
+  ls result
+fi
+
+unsigned_name="${apk_files[0]##*/}"
 signed_name="${unsigned_name/_release_unsigned/_release_signed}"
 
 echo "===Copying unsigned release $unsigned_name to $OUTDIR==="

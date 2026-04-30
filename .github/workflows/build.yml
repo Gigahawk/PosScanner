@@ -53,7 +53,7 @@ jobs:
         with:
           files: |
             .dist/*_release_signed.*
-          # Always generate as a prerelease, human should manually mark as a full release 
+          # Always generate as a prerelease, human should manually mark as a full release
           prerelease: true
           generate_release_notes: true
           fail_on_unmatched_files: true

@@ -9,5 +9,5 @@ import androidx.datastore.preferences.preferencesDataStore
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 object PreferencesKeys {
-    val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+  val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
 }
