@@ -5,3 +5,6 @@ naming:
 style:
   ForbiddenComment:
     allowedPatterns: "TODO"
+complexity:
+  LongMethod:
+    threshold: 100

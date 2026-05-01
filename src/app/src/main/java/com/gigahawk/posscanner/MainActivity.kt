@@ -15,6 +15,10 @@ import com.gigahawk.posscanner.ui.theme.PosScannerTheme
 import kotlinx.coroutines.flow.map
 
 class MainActivity : ComponentActivity() {
+  companion object {
+    const val TAG = "MainActivity"
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
