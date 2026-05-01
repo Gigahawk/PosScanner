@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -40,6 +41,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -84,6 +86,7 @@ import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import java.util.Hashtable
 import java.util.concurrent.Executors
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -281,11 +284,26 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
 
   private var mlKitScanner: BarcodeScanner? = null
   private var zxingReader: MultiFormatReader? = null
-  private val _isScanningActive = MutableStateFlow(false)
-  val isScanningActive: StateFlow<Boolean> = _isScanningActive
 
-  fun setScanningActive(active: Boolean) {
-    _isScanningActive.value = active
+  var scanningActive by mutableStateOf(false)
+  var showPrompt by mutableStateOf(false)
+  private var confirmDeferred: CompletableDeferred<Boolean>? = null
+
+  suspend fun awaitPromptDismiss(): Boolean {
+    scanningActive = false
+    confirmDeferred = CompletableDeferred()
+    showPrompt = true
+
+    val result = confirmDeferred!!.await()
+
+    showPrompt = false
+    scanningActive = true
+    confirmDeferred = null
+    return result
+  }
+
+  fun onConfirmPromptResponse(confirmed: Boolean) {
+    confirmDeferred?.complete(confirmed)
   }
 
   fun getImageAnalysis(): ImageAnalysis {
@@ -301,7 +319,7 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
 
   @androidx.annotation.OptIn(ExperimentalGetImage::class)
   private fun processImageProxy(imageProxy: ImageProxy) {
-    if (!_isScanningActive.value) {
+    if (!scanningActive) {
       imageProxy.close()
       return
     }
@@ -459,6 +477,7 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
 @Composable
 fun CameraPreviewContent(
@@ -474,20 +493,37 @@ fun CameraPreviewContent(
   val triggerMode by viewModel.triggerMode.collectAsState()
 
   LaunchedEffect(triggerMode) {
-    if (triggerMode == TriggerMode.CONTINUOUS) {
-      viewModel.setScanningActive(true)
-    } else {
-      viewModel.setScanningActive(false)
-    }
+    viewModel.scanningActive =
+        when (triggerMode) {
+          TriggerMode.CONTINUOUS -> true
+          TriggerMode.PROMPT -> true
+          TriggerMode.HOLD -> false
+          TriggerMode.PRESS -> false
+        }
   }
 
   LaunchedEffect(scanResult) {
     scanResult?.let {
-      hidKeyboardManager.sendString(it)
-      if (triggerMode != TriggerMode.CONTINUOUS) {
-        viewModel.setScanningActive(false)
+      Log.d("SCAN", "Got scan result: ")
+      Log.d("SCAN", it)
+      var shouldSend = true
+      if (triggerMode == TriggerMode.PROMPT) {
+        Log.d("SCAN", "Trigger mode is PROMPT, showing confirmation dialog")
+        viewModel.scanningActive = false
+        shouldSend = viewModel.awaitPromptDismiss()
+        viewModel.scanningActive = true
+      }
+      if (shouldSend) {
+        Log.d("SCAN", "Sending scan result to HID")
+        hidKeyboardManager.sendString(it)
+      } else {
+        Log.d("SCAN", "Scan result not sent to HID")
       }
     }
+  }
+
+  LaunchedEffect(lifecycleOwner, viewModel) {
+    viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
   }
 
   DisposableEffect(viewModel) {
@@ -533,17 +569,17 @@ fun CameraPreviewContent(
                   .padding(bottom = 32.dp)
                   .size(80.dp)
                   .pointerInput(triggerMode) {
-                    awaitPointerEventScope {
-                      while (true) {
-                        awaitFirstDown(pass = PointerEventPass.Initial)
+                    if (triggerMode == TriggerMode.HOLD) {
+                      awaitPointerEventScope {
+                        while (true) {
+                          awaitFirstDown(pass = PointerEventPass.Initial)
 
-                        Log.d("CameraPreview", "Shutter clicked")
-                        viewModel.setScanningActive(true)
+                          Log.d("CameraPreview", "Shutter clicked")
+                          viewModel.scanningActive = true
 
-                        if (triggerMode == TriggerMode.HOLD) {
                           waitForUpOrCancellation(pass = PointerEventPass.Initial)
                           Log.d("CameraPreview", "Shutter released")
-                          viewModel.setScanningActive(false)
+                          viewModel.scanningActive = false
                         }
                       }
                     }
@@ -557,9 +593,22 @@ fun CameraPreviewContent(
         )
       }
     }
-  }
 
-  LaunchedEffect(lifecycleOwner, viewModel) {
-    viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
+    if (viewModel.showPrompt) {
+      AlertDialog(
+          title = { Text("Confirm Scan") },
+          text = { Text("Send this value?\n\n${scanResult}") },
+          onDismissRequest = {
+            Log.d("SPROMPT", "Prompt dismissed")
+            viewModel.onConfirmPromptResponse(false)
+          },
+          confirmButton = {
+            TextButton(onClick = { viewModel.onConfirmPromptResponse(true) }) { Text("Yes") }
+          },
+          dismissButton = {
+            TextButton(onClick = { viewModel.onConfirmPromptResponse(false) }) { Text("No") }
+          },
+      )
+    }
   }
 }
