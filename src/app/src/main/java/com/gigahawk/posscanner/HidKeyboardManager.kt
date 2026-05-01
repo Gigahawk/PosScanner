@@ -11,6 +11,7 @@ import android.content.Context
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -155,18 +156,50 @@ class HidKeyboardManager(private val context: Context) {
   }
 
   @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-  fun sendKeyRelease() {
-    if (targetDevice == null) {
-      Log.e(TAG, "Target device is null")
-      return
+  suspend fun sendString(text: String) {
+    if (targetDevice == null || hidDevice == null) return
+
+    text.forEach { char ->
+      val (keyCode, shift) = getHidCode(char)
+      if (keyCode != 0.toByte()) {
+        val report = KeyboardReport()
+        report.leftShift = shift
+        report.key1 = keyCode
+        hidDevice?.sendReport(targetDevice, KeyboardReport.ID, report.bytes)
+
+        delay(10)
+
+        // Release key
+        report.reset()
+        hidDevice?.sendReport(targetDevice, KeyboardReport.ID, report.bytes)
+
+        delay(10)
+      }
     }
 
-    Log.d(TAG, "Sending keypress released to device ${targetDevice!!.name}")
-    val report = KeyboardReport()
-    hidDevice?.sendReport(
-        targetDevice,
-        KeyboardReport.ID,
-        report.bytes,
-    )
+    //// Send Enter at the end
+    // val report = KeyboardReport()
+    // report.key1 = 40.toByte() // KEYCODE_ENTER
+    // hidDevice?.sendReport(targetDevice, KeyboardReport.ID, report.bytes)
+    // delay(10)
+    // report.reset()
+    // hidDevice?.sendReport(targetDevice, KeyboardReport.ID, report.bytes)
+  }
+
+  private fun getHidCode(char: Char): Pair<Byte, Boolean> {
+    return when (char) {
+      in 'a'..'z' -> (char - 'a' + 4).toByte() to false
+      in 'A'..'Z' -> (char - 'A' + 4).toByte() to true
+      in '1'..'9' -> (char - '1' + 30).toByte() to false
+      '0' -> 39.toByte() to false
+      '-' -> 45.toByte() to false
+      '=' -> 46.toByte() to false
+      ' ' -> 44.toByte() to false
+      '.' -> 55.toByte() to false
+      ',' -> 54.toByte() to false
+      '/' -> 56.toByte() to false
+      ':' -> 51.toByte() to true
+      else -> 0.toByte() to false
+    }
   }
 }

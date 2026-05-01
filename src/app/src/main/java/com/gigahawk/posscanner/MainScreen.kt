@@ -72,12 +72,18 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
+import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
@@ -93,6 +99,17 @@ fun MainScreen(
   val scope = rememberCoroutineScope()
   var showCameraDropdown by remember { mutableStateOf(false) }
   val connectedDevice by hidKeyboardManager.connectedDevice.collectAsState()
+
+  val scanBackend by
+      context.dataStore.data
+          .map { preferences ->
+            ScanBackend.fromInt(
+                preferences[PreferencesKeys.SCAN_BACKEND] ?: ScanBackend.MLKIT.value
+            )
+          }
+          .collectAsState(initial = ScanBackend.MLKIT)
+
+  LaunchedEffect(scanBackend) { viewModel.setScanBackend(scanBackend) }
 
   ModalNavigationDrawer(
       drawerContent = {
@@ -236,7 +253,25 @@ class CameraPreviewViewModel : ViewModel() {
   private val _scanResult = MutableStateFlow<String?>(null)
   val scanResult: StateFlow<String?> = _scanResult
 
+  private var lastScanTime = 0L
+  private var lastScanResult: String? = null
+  private val COOLDOWN_MS = 2000L
+
   private var imageAnalysis: ImageAnalysis? = null
+
+  private val mlKitScanner = BarcodeScanning.getClient()
+  private val zxingReader = MultiFormatReader()
+  private val _scanBackend = MutableStateFlow(ScanBackend.MLKIT)
+  private val _isScanningActive = MutableStateFlow(false)
+  val isScanningActive: StateFlow<Boolean> = _isScanningActive
+
+  fun setScanBackend(backend: ScanBackend) {
+    _scanBackend.value = backend
+  }
+
+  fun setScanningActive(active: Boolean) {
+    _isScanningActive.value = active
+  }
 
   fun getImageAnalysis(): ImageAnalysis {
     return imageAnalysis
@@ -251,8 +286,70 @@ class CameraPreviewViewModel : ViewModel() {
 
   @androidx.annotation.OptIn(ExperimentalGetImage::class)
   private fun processImageProxy(imageProxy: ImageProxy) {
-    val mediaImage = imageProxy.image ?: return
+    if (!_isScanningActive.value) {
+      imageProxy.close()
+      return
+    }
+    if (_scanBackend.value == ScanBackend.MLKIT) {
+      processWithMlKit(imageProxy)
+    } else {
+      processWithZxing(imageProxy)
+    }
+  }
+
+  @androidx.annotation.OptIn(ExperimentalGetImage::class)
+  private fun processWithMlKit(imageProxy: ImageProxy) {
+    val mediaImage = imageProxy.image
+    if (mediaImage == null) {
+      imageProxy.close()
+      return
+    }
     val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+    mlKitScanner
+        .process(image)
+        .addOnSuccessListener { barcodes ->
+          barcodes.firstOrNull()?.rawValue?.let { result ->
+            val currentTime = System.currentTimeMillis()
+            if (result != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
+              _scanResult.value = result
+              lastScanResult = result
+              lastScanTime = currentTime
+            }
+          }
+        }
+        .addOnCompleteListener { imageProxy.close() }
+  }
+
+  private fun processWithZxing(imageProxy: ImageProxy) {
+    val buffer = imageProxy.planes[0].buffer
+    val data = ByteArray(buffer.remaining())
+    buffer.get(data)
+    val source =
+        PlanarYUVLuminanceSource(
+            data,
+            imageProxy.width,
+            imageProxy.height,
+            0,
+            0,
+            imageProxy.width,
+            imageProxy.height,
+            false,
+        )
+    val bitmap = BinaryBitmap(HybridBinarizer(source))
+    try {
+      val result = zxingReader.decodeWithState(bitmap)
+      val currentTime = System.currentTimeMillis()
+      if (result.text != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
+        _scanResult.value = result.text
+        lastScanResult = result.text
+        lastScanTime = currentTime
+      }
+    } catch (e: Exception) {
+      // No barcode found
+    } finally {
+      zxingReader.reset()
+      imageProxy.close()
+    }
   }
 
   data class CameraItem(val label: String, val selector: CameraSelector)
@@ -330,7 +427,7 @@ class CameraPreviewViewModel : ViewModel() {
       Log.d("CameraPreview", "Binding to camera: ${item.label}")
       try {
         provider.unbindAll()
-        provider.bindToLifecycle(lifecycleOwner, item.selector, getPreview())
+        provider.bindToLifecycle(lifecycleOwner, item.selector, getPreview(), getImageAnalysis())
         Log.d("CameraPreview", "Binding successful")
       } catch (e: Exception) {
         Log.e("CameraPreview", "Binding failed for ${item.label}", e)
@@ -351,6 +448,31 @@ fun CameraPreviewContent(
 ) {
   val context = LocalContext.current
   val selectedCamera by viewModel.selectedCameraItem.collectAsState()
+  val scanResult by viewModel.scanResult.collectAsState()
+
+  val triggerMode by
+      context.dataStore.data
+          .map { preferences ->
+            TriggerMode.fromInt(preferences[PreferencesKeys.TRIGGER_MODE] ?: TriggerMode.HOLD.value)
+          }
+          .collectAsState(initial = TriggerMode.HOLD)
+
+  LaunchedEffect(triggerMode) {
+    if (triggerMode == TriggerMode.CONTINUOUS) {
+      viewModel.setScanningActive(true)
+    } else {
+      viewModel.setScanningActive(false)
+    }
+  }
+
+  LaunchedEffect(scanResult) {
+    scanResult?.let {
+      hidKeyboardManager.sendString(it)
+      if (triggerMode != TriggerMode.CONTINUOUS) {
+        viewModel.setScanningActive(false)
+      }
+    }
+  }
 
   DisposableEffect(viewModel) {
     onDispose {
@@ -387,33 +509,37 @@ fun CameraPreviewContent(
       )
     }
 
-    IconButton(
-        onClick = {},
-        modifier =
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).size(80.dp).pointerInput(
-                Unit
-            ) {
-              awaitPointerEventScope {
-                while (true) {
-                  awaitFirstDown(pass = PointerEventPass.Initial)
+    if (triggerMode != TriggerMode.CONTINUOUS) {
+      IconButton(
+          onClick = {},
+          modifier =
+              Modifier.align(Alignment.BottomCenter)
+                  .padding(bottom = 32.dp)
+                  .size(80.dp)
+                  .pointerInput(triggerMode) {
+                    awaitPointerEventScope {
+                      while (true) {
+                        awaitFirstDown(pass = PointerEventPass.Initial)
 
-                  Log.d("CameraPreview", "Shutter clicked")
-                  hidKeyboardManager.sendKeyA()
+                        Log.d("CameraPreview", "Shutter clicked")
+                        viewModel.setScanningActive(true)
 
-                  waitForUpOrCancellation(pass = PointerEventPass.Initial)
-
-                  Log.d("CameraPreview", "Shutter released")
-                  hidKeyboardManager.sendKeyRelease()
-                }
-              }
-            },
-    ) {
-      Icon(
-          imageVector = Icons.Default.RadioButtonChecked,
-          contentDescription = "Shutter",
-          modifier = Modifier.fillMaxSize(),
-          tint = Color.White,
-      )
+                        if (triggerMode == TriggerMode.HOLD) {
+                          waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                          Log.d("CameraPreview", "Shutter released")
+                          viewModel.setScanningActive(false)
+                        }
+                      }
+                    }
+                  },
+      ) {
+        Icon(
+            imageVector = Icons.Default.RadioButtonChecked,
+            contentDescription = "Shutter",
+            modifier = Modifier.fillMaxSize(),
+            tint = Color.White,
+        )
+      }
     }
   }
 
