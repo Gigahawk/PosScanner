@@ -1,5 +1,6 @@
 package com.gigahawk.posscanner
 
+import android.app.Application
 import android.content.Context
 import android.util.Log
 import androidx.camera.core.CameraSelector
@@ -61,8 +62,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.gigahawk.posscanner.icons.MaterialSymbolsBarcodeReader
@@ -72,18 +73,21 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
+import com.google.mlkit.vision.barcode.BarcodeScanner
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
+import java.util.Hashtable
 import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
@@ -99,17 +103,6 @@ fun MainScreen(
   val scope = rememberCoroutineScope()
   var showCameraDropdown by remember { mutableStateOf(false) }
   val connectedDevice by hidKeyboardManager.connectedDevice.collectAsState()
-
-  val scanBackend by
-      context.dataStore.data
-          .map { preferences ->
-            ScanBackend.fromInt(
-                preferences[PreferencesKeys.SCAN_BACKEND] ?: ScanBackend.MLKIT.value
-            )
-          }
-          .collectAsState(initial = ScanBackend.MLKIT)
-
-  LaunchedEffect(scanBackend) { viewModel.setScanBackend(scanBackend) }
 
   ModalNavigationDrawer(
       drawerContent = {
@@ -158,7 +151,6 @@ fun MainScreen(
               title = {
                 Column {
                   Text("PosScanner")
-                  val selectedCamera by viewModel.selectedCameraItem.collectAsState()
 
                   Text(
                       text = "HID: ${connectedDevice?.name ?: "Disconnected"}",
@@ -239,7 +231,35 @@ fun MainScreen(
   }
 }
 
-class CameraPreviewViewModel : ViewModel() {
+class CameraPreviewViewModel(application: Application) : SettingsViewModel(application) {
+  init {
+    viewModelScope.launch {
+      mlkitBarcodeFormats.collect { formatsSet ->
+        mlKitScanner?.close()
+
+        val formats = MlKitBarcodeFormat.toFormats(formatsSet).toList()
+        val options =
+            BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(formats[0], *formats.drop(1).toIntArray())
+                .build()
+        mlKitScanner = BarcodeScanning.getClient(options)
+      }
+    }
+
+    viewModelScope.launch {
+      zxingBarcodeFormats.collect { formatsSet ->
+        zxingReader?.reset()
+
+        val formats = ZxingBarcodeFormat.toFormats(formatsSet).toList()
+        val hints = Hashtable<DecodeHintType, Any?>(2)
+        hints[DecodeHintType.POSSIBLE_FORMATS] = formats
+
+        zxingReader = MultiFormatReader()
+        zxingReader!!.setHints(hints)
+      }
+    }
+  }
+
   private val _selectedCameraItem = MutableStateFlow<CameraItem?>(null)
   val selectedCameraItem: StateFlow<CameraItem?> = _selectedCameraItem
 
@@ -259,15 +279,10 @@ class CameraPreviewViewModel : ViewModel() {
 
   private var imageAnalysis: ImageAnalysis? = null
 
-  private val mlKitScanner = BarcodeScanning.getClient()
-  private val zxingReader = MultiFormatReader()
-  private val _scanBackend = MutableStateFlow(ScanBackend.MLKIT)
+  private var mlKitScanner: BarcodeScanner? = null
+  private var zxingReader: MultiFormatReader? = null
   private val _isScanningActive = MutableStateFlow(false)
   val isScanningActive: StateFlow<Boolean> = _isScanningActive
-
-  fun setScanBackend(backend: ScanBackend) {
-    _scanBackend.value = backend
-  }
 
   fun setScanningActive(active: Boolean) {
     _isScanningActive.value = active
@@ -290,7 +305,7 @@ class CameraPreviewViewModel : ViewModel() {
       imageProxy.close()
       return
     }
-    if (_scanBackend.value == ScanBackend.MLKIT) {
+    if (scanBackend.value == ScanBackend.MLKIT) {
       processWithMlKit(imageProxy)
     } else {
       processWithZxing(imageProxy)
@@ -305,19 +320,22 @@ class CameraPreviewViewModel : ViewModel() {
       return
     }
     val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-    mlKitScanner
-        .process(image)
-        .addOnSuccessListener { barcodes ->
-          barcodes.firstOrNull()?.rawValue?.let { result ->
-            val currentTime = System.currentTimeMillis()
-            if (result != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
-              _scanResult.value = result
-              lastScanResult = result
-              lastScanTime = currentTime
+    mlKitScanner?.let { scanner ->
+      scanner
+          .process(image)
+          .addOnSuccessListener { barcodes ->
+            barcodes.firstOrNull()?.rawValue?.let { result ->
+              val currentTime = System.currentTimeMillis()
+              if (result != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
+                Log.d("CameraPreview", "Found barcode with MLKIT: $result")
+                _scanResult.value = result
+                lastScanResult = result
+                lastScanTime = currentTime
+              }
             }
           }
-        }
-        .addOnCompleteListener { imageProxy.close() }
+          .addOnCompleteListener { imageProxy.close() }
+    } ?: imageProxy.close()
   }
 
   private fun processWithZxing(imageProxy: ImageProxy) {
@@ -336,19 +354,22 @@ class CameraPreviewViewModel : ViewModel() {
             false,
         )
     val bitmap = BinaryBitmap(HybridBinarizer(source))
-    try {
-      val result = zxingReader.decodeWithState(bitmap)
-      val currentTime = System.currentTimeMillis()
-      if (result.text != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
-        _scanResult.value = result.text
-        lastScanResult = result.text
-        lastScanTime = currentTime
+    zxingReader?.let { reader ->
+      try {
+        val result = reader.decodeWithState(bitmap)
+        val currentTime = System.currentTimeMillis()
+        if (result.text != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
+          Log.d("CameraPreview", "Found barcode with ZXING: ${result.text}")
+          _scanResult.value = result.text
+          lastScanResult = result.text
+          lastScanTime = currentTime
+        }
+      } catch (e: Exception) {
+        // No barcode found
+      } finally {
+        reader.reset()
+        imageProxy.close()
       }
-    } catch (e: Exception) {
-      // No barcode found
-    } finally {
-      zxingReader.reset()
-      imageProxy.close()
     }
   }
 
@@ -450,12 +471,7 @@ fun CameraPreviewContent(
   val selectedCamera by viewModel.selectedCameraItem.collectAsState()
   val scanResult by viewModel.scanResult.collectAsState()
 
-  val triggerMode by
-      context.dataStore.data
-          .map { preferences ->
-            TriggerMode.fromInt(preferences[PreferencesKeys.TRIGGER_MODE] ?: TriggerMode.HOLD.value)
-          }
-          .collectAsState(initial = TriggerMode.HOLD)
+  val triggerMode by viewModel.triggerMode.collectAsState()
 
   LaunchedEffect(triggerMode) {
     if (triggerMode == TriggerMode.CONTINUOUS) {
@@ -509,7 +525,7 @@ fun CameraPreviewContent(
       )
     }
 
-    if (triggerMode != TriggerMode.CONTINUOUS) {
+    if (triggerMode.needsTrigger) {
       IconButton(
           onClick = {},
           modifier =

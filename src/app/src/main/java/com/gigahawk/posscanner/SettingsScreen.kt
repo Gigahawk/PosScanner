@@ -1,59 +1,51 @@
 package com.gigahawk.posscanner
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.alorma.compose.settings.ui.SettingsSlider
+import com.alorma.compose.settings.ui.expressive.SettingsCheckbox
+import com.alorma.compose.settings.ui.expressive.SettingsGroup
+import com.alorma.compose.settings.ui.expressive.SettingsMenuLink
+import com.alorma.compose.settings.ui.expressive.SettingsRadioButton
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun SettingsScreen(navController: NavController) {
+fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = viewModel()) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
 
-  val triggerModeFlow =
-      remember(context) {
-        context.dataStore.data.map { preferences ->
-          TriggerMode.fromInt(preferences[PreferencesKeys.TRIGGER_MODE] ?: TriggerMode.HOLD.value)
-        }
-      }
-  val triggerMode by triggerModeFlow.collectAsState(initial = TriggerMode.HOLD)
+  val triggerMode by viewModel.triggerMode.collectAsState()
+  val scanSuffix by viewModel.scanSuffix.collectAsState()
+  val reportDelayMs by viewModel.reportDelayMs.collectAsState()
 
-  val scanBackendFlow =
-      remember(context) {
-        context.dataStore.data.map { preferences ->
-          ScanBackend.fromInt(preferences[PreferencesKeys.SCAN_BACKEND] ?: ScanBackend.MLKIT.value)
-        }
-      }
-  val scanBackend by scanBackendFlow.collectAsState(initial = ScanBackend.MLKIT)
+  val scanBackend by viewModel.scanBackend.collectAsState()
+  val mlkitBarcodeFormats by viewModel.mlkitBarcodeFormats.collectAsState()
+  val zxingBarcodeFormat by viewModel.zxingBarcodeFormats.collectAsState()
 
   Scaffold(
       topBar = {
@@ -67,64 +59,158 @@ fun SettingsScreen(navController: NavController) {
         )
       }
   ) { padding ->
-    Column(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
-      Text(text = "Trigger Mode", style = MaterialTheme.typography.titleMedium)
-      Column(Modifier.selectableGroup()) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(padding)) {
+      Text(
+          "Scanner Behavior",
+          style = MaterialTheme.typography.titleLarge,
+          modifier = Modifier.padding(16.dp),
+      )
+
+      SettingsGroup(title = { Text("Trigger Mode:") }) {
         TriggerMode.entries.forEach { mode ->
-          Row(
-              Modifier.fillMaxWidth()
-                  .selectable(
-                      selected = (mode == triggerMode),
-                      onClick = {
-                        scope.launch {
-                          context.dataStore.edit { settings ->
-                            settings[PreferencesKeys.TRIGGER_MODE] = mode.value
-                          }
-                        }
-                      },
-                      role = Role.RadioButton,
-                  )
-                  .padding(vertical = 8.dp),
-              verticalAlignment = Alignment.CenterVertically,
-          ) {
-            RadioButton(selected = (mode == triggerMode), onClick = null)
-            Text(
-                text = mode.name,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 16.dp),
-            )
-          }
+          SettingsRadioButton(
+              title = { Text(mode.displayName) },
+              subtitle = { Text(mode.description) },
+              state = mode.value == triggerMode.value,
+              onClick = {
+                scope.launch {
+                  context.dataStore.edit { it[PreferencesKeys.TRIGGER_MODE] = mode.value }
+                }
+              },
+          )
         }
       }
 
-      HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+      SettingsGroup(title = { Text("Suffix:") }) {
+        ScanSuffix.entries.forEach { mode ->
+          SettingsRadioButton(
+              title = { Text(mode.displayName) },
+              subtitle = { Text(mode.description) },
+              state = mode.value == scanSuffix.value,
+              onClick = {
+                scope.launch {
+                  context.dataStore.edit { it[PreferencesKeys.SCAN_SUFFIX] = mode.value }
+                }
+              },
+          )
+        }
+        if (scanSuffix == ScanSuffix.CUSTOM) {
+          SettingsMenuLink(
+              title = { Text("Set Custom Suffix") },
+              onClick = {
+                // navController.navigate("suffix")
+              },
+          )
+        }
+      }
 
-      Text(text = "Scan Backend", style = MaterialTheme.typography.titleMedium)
-      Column(Modifier.selectableGroup()) {
+      SettingsSlider(
+          { Text("Keypress Delay") },
+          subtitle = { Text("Delay between simulated keypress events: $reportDelayMs ms") },
+          value = reportDelayMs.toFloat(),
+          valueRange = 0f..250f,
+          steps = 251,
+          onValueChange = { newValue: Float ->
+            scope.launch {
+              context.dataStore.edit { it[PreferencesKeys.REPORT_DELAY_MS] = newValue.toInt() }
+            }
+          },
+      )
+
+      SettingsMenuLink(
+          title = { Text("Output Format") },
+          subtitle = { Text("Set the format of the output string") },
+          onClick = {
+            // navController.navigate("output_format")
+          },
+      )
+
+      Text(
+          "Decoder Settings",
+          style = MaterialTheme.typography.titleLarge,
+          modifier = Modifier.padding(16.dp),
+      )
+
+      SettingsGroup(title = { Text("Decoder Library:") }) {
         ScanBackend.entries.forEach { backend ->
-          Row(
-              Modifier.fillMaxWidth()
-                  .selectable(
-                      selected = (backend == scanBackend),
-                      onClick = {
-                        scope.launch {
-                          context.dataStore.edit { settings ->
-                            settings[PreferencesKeys.SCAN_BACKEND] = backend.value
+          SettingsRadioButton(
+              title = { Text(backend.displayName) },
+              state = backend.value == scanBackend.value,
+              onClick = {
+                scope.launch {
+                  context.dataStore.edit { it[PreferencesKeys.SCAN_BACKEND] = backend.value }
+                }
+              },
+          )
+        }
+      }
+
+      SettingsGroup(title = { Text("Enabled Barcode Formats:") }) {
+        when (scanBackend) {
+          ScanBackend.MLKIT ->
+              MlKitBarcodeFormat.entries
+                  .sortedBy { it.displayName }
+                  .forEach { format ->
+                    SettingsCheckbox(
+                        title = { Text(format.displayName) },
+                        state = mlkitBarcodeFormats.any { it.value == format.value },
+                        onCheckedChange = { newState: Boolean ->
+                          scope.launch {
+                            context.dataStore.edit { preferences ->
+                              val newFormats = mlkitBarcodeFormats.toMutableSet()
+                              if (newState) {
+                                newFormats.add(format)
+                              } else {
+                                newFormats.remove(format)
+                              }
+                              if (newFormats.isEmpty()) {
+                                Toast.makeText(
+                                        context,
+                                        "At least one format must be enabled!",
+                                        Toast.LENGTH_SHORT,
+                                    )
+                                    .show()
+                              } else {
+                                preferences[PreferencesKeys.MLKIT_BARCODE_FORMATS] =
+                                    newFormats.map { it.displayName }.toSet()
+                              }
+                            }
                           }
-                        }
-                      },
-                      role = Role.RadioButton,
-                  )
-                  .padding(vertical = 8.dp),
-              verticalAlignment = Alignment.CenterVertically,
-          ) {
-            RadioButton(selected = (backend == scanBackend), onClick = null)
-            Text(
-                text = backend.name,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 16.dp),
-            )
-          }
+                        },
+                    )
+                  }
+          ScanBackend.ZXING ->
+              ZxingBarcodeFormat.entries
+                  .sortedBy { it.displayName }
+                  .forEach { format ->
+                    SettingsCheckbox(
+                        title = { Text(format.displayName) },
+                        state = zxingBarcodeFormat.any { it.zxingValue == format.zxingValue },
+                        onCheckedChange = { newState: Boolean ->
+                          scope.launch {
+                            context.dataStore.edit { preferences ->
+                              val newFormats = zxingBarcodeFormat.toMutableSet()
+                              if (newState) {
+                                newFormats.add(format)
+                              } else {
+                                newFormats.remove(format)
+                              }
+                              if (newFormats.isEmpty()) {
+                                Toast.makeText(
+                                        context,
+                                        "At least one format must be enabled!",
+                                        Toast.LENGTH_SHORT,
+                                    )
+                                    .show()
+                              } else {
+                                preferences[PreferencesKeys.ZXING_BARCODE_FORMATS] =
+                                    newFormats.map { it.displayName }.toSet()
+                              }
+                            }
+                          }
+                        },
+                    )
+                  }
         }
       }
     }

@@ -54,6 +54,9 @@ dependencies {
   implementation(libs.androidx.camera.view)
   implementation(libs.barcode.scanning)
   implementation(libs.core)
+  implementation(libs.ui.tiles.expressive)
+  implementation(libs.ui.tiles.extended)
+  implementation(libs.ui.tiles)
 
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.junit)

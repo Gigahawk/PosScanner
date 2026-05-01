@@ -20,6 +20,9 @@ cameraCompose = "1.6.0"
 cameraLifecycle = "1.6.0"
 cameraView = "1.6.0"
 camera2 = "1.6.0"
+uiTiles = "3.1.0"
+uiTilesExpressive = "3.1.0"
+uiTilesExtended = "3.1.0"
 
 [libraries]
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
@@ -49,6 +52,10 @@ androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycl
 androidx-camera-compose = { group = "androidx.camera", name = "camera-compose", version.ref = "cameraCompose" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraView" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camera2" }
+ui-tiles = { module = "com.github.alorma.compose-settings:ui-tiles", version.ref = "uiTiles" }
+ui-tiles-expressive = { module = "com.github.alorma.compose-settings:ui-tiles-expressive", version.ref = "uiTilesExpressive" }
+ui-tiles-extended = { module = "com.github.alorma.compose-settings:ui-tiles-extended", version.ref = "uiTilesExtended" }
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
