@@ -7,6 +7,8 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ExperimentalLensFacing
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -282,6 +284,8 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
 
   private var imageAnalysis: ImageAnalysis? = null
 
+  private var imageCapture: ImageCapture? = null
+
   private var mlKitScanner: BarcodeScanner? = null
   private var zxingReader: MultiFormatReader? = null
 
@@ -317,9 +321,35 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
             }
   }
 
+  fun getImageCapture(): ImageCapture {
+    return imageCapture
+        ?: ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .build()
+            .also { imageCapture = it }
+  }
+
+  fun captureAndScan(context: Context) {
+    Log.d("SCAN", "Triggering image capture")
+    imageCapture?.takePicture(
+        context.mainExecutor,
+        object : ImageCapture.OnImageCapturedCallback() {
+          override fun onCaptureSuccess(image: ImageProxy) {
+            Log.d("SCAN", "processing image capture")
+            processImageProxy(image, force = true)
+          }
+
+          override fun onError(exception: ImageCaptureException) {
+            Log.e("CameraPreview", "Image capture failed", exception)
+            super.onError(exception)
+          }
+        },
+    )
+  }
+
   @androidx.annotation.OptIn(ExperimentalGetImage::class)
-  private fun processImageProxy(imageProxy: ImageProxy) {
-    if (!scanningActive) {
+  private fun processImageProxy(imageProxy: ImageProxy, force: Boolean = false) {
+    if (!scanningActive && !force) {
       imageProxy.close()
       return
     }
@@ -383,7 +413,9 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
           lastScanTime = currentTime
         }
       } catch (e: Exception) {
-        // No barcode found
+        if (triggerMode.value == TriggerMode.PRESS) {
+          Log.d("CameraPreview", "No barcode found, sending empty string")
+        }
       } finally {
         reader.reset()
         imageProxy.close()
@@ -466,7 +498,13 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
       Log.d("CameraPreview", "Binding to camera: ${item.label}")
       try {
         provider.unbindAll()
-        provider.bindToLifecycle(lifecycleOwner, item.selector, getPreview(), getImageAnalysis())
+        provider.bindToLifecycle(
+            lifecycleOwner,
+            item.selector,
+            getPreview(),
+            getImageAnalysis(),
+            getImageCapture(),
+        )
         Log.d("CameraPreview", "Binding successful")
       } catch (e: Exception) {
         Log.e("CameraPreview", "Binding failed for ${item.label}", e)
@@ -563,7 +601,12 @@ fun CameraPreviewContent(
 
     if (triggerMode.needsTrigger) {
       IconButton(
-          onClick = {},
+          onClick =
+              if (triggerMode == TriggerMode.PRESS) {
+                { viewModel.captureAndScan(context) }
+              } else {
+                {}
+              },
           modifier =
               Modifier.align(Alignment.BottomCenter)
                   .padding(bottom = 32.dp)
