@@ -1,6 +1,7 @@
 package com.gigahawk.posscanner
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -13,11 +14,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -47,19 +50,37 @@ import com.gigahawk.posscanner.icons.MaterialSymbolsPhoneAndroid
 import com.gigahawk.posscanner.icons.MaterialSymbolsQuestionMark
 import com.gigahawk.posscanner.icons.MaterialSymbolsSpeaker
 import com.gigahawk.posscanner.icons.MaterialSymbolsTouchpadMouse
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.shouldShowRationale
 
-@OptIn(ExperimentalMaterial3Api::class)
-@RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+@SuppressLint("MissingPermission")
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun NewDeviceScreen(navController: NavController, hidKeyboardManager: HidKeyboardManager) {
   val context = LocalContext.current
-  val devices = remember {
-    getPairedDevices(context)
-        .sortedWith(
-            compareByDescending<BluetoothDevice> { isControllableDevice(getDeviceType(it)) }
-                .thenBy { it.name ?: "" }
-        )
-  }
+  val bluetoothPermissionState =
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        rememberPermissionState(Manifest.permission.BLUETOOTH_CONNECT)
+      } else {
+        null
+      }
+
+  val permissionGranted = bluetoothPermissionState?.status?.isGranted ?: true
+
+  val devices =
+      remember(permissionGranted) {
+        if (permissionGranted) {
+          getPairedDevices(context)
+              .sortedWith(
+                  compareByDescending<BluetoothDevice> { isControllableDevice(getDeviceType(it)) }
+                      .thenBy { it.name ?: "" }
+              )
+        } else {
+          emptyList()
+        }
+      }
 
   Scaffold(
       topBar = {
@@ -73,25 +94,50 @@ fun NewDeviceScreen(navController: NavController, hidKeyboardManager: HidKeyboar
         )
       },
       floatingActionButton = {
-        FloatingActionButton(onClick = {}) {
-          Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = MaterialSymbolsAdd, contentDescription = "Add")
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("New device")
+        if (permissionGranted) {
+          FloatingActionButton(onClick = {}) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Icon(imageVector = MaterialSymbolsAdd, contentDescription = "Add")
+              Spacer(modifier = Modifier.width(8.dp))
+              Text("New device")
+            }
           }
         }
       },
   ) { padding ->
-    LazyColumn(contentPadding = padding) {
-      items(devices.size) { device ->
-        DeviceListItem(
-            device = devices[device],
-            onClick = { dev ->
-              hidKeyboardManager.connect(dev)
+    if (permissionGranted) {
+      LazyColumn(contentPadding = padding) {
+        items(devices.size) { index ->
+          val device = devices[index]
+          DeviceListItem(
+              device = device,
+              onClick = { dev ->
+                hidKeyboardManager.connect(dev)
 
-              navController.navigate("main") { popUpTo("new_device") { inclusive = true } }
-            },
-        )
+                navController.navigate("main") { popUpTo("new_device") { inclusive = true } }
+              },
+          )
+        }
+      }
+    } else {
+      Column(
+          modifier = Modifier.padding(padding).padding(16.dp),
+          horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
+        val textToShow =
+            if (bluetoothPermissionState!!.status.shouldShowRationale) {
+              "Bluetooth connection permission is needed to list paired devices. Please grant it."
+            } else {
+              "Bluetooth connection permission is required. Please grant it in settings or here."
+            }
+        Text(textToShow)
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = { bluetoothPermissionState.launchPermissionRequest() }) {
+          Text("Grant Permission")
+        }
       }
     }
   }

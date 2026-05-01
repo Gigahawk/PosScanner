@@ -43,7 +43,16 @@ fun AppRoot() {
         context.dataStore.data.map { it[PreferencesKeys.ONBOARDING_COMPLETE] ?: false }
       }
 
-  val onboardingDone by onboardingFlow.collectAsState(initial = false)
+  val onboardingDoneState by onboardingFlow.collectAsState(initial = null)
+
+  if (onboardingDoneState == null) {
+    // Wait for the initial state from DataStore to avoid flickering/wrong start destination
+    return
+  }
+
+  val onboardingDone = onboardingDoneState!!
+  val startDestination = remember { if (onboardingDone) "main" else "onboarding" }
+
   if (onboardingDone) {
     Log.d("MAIN", "Onboarding already complete, initing HID manager")
     hidKeyboardManager.init()
@@ -51,7 +60,7 @@ fun AppRoot() {
 
   NavHost(
       navController = navController,
-      startDestination = if (onboardingDone) "main" else "onboarding",
+      startDestination = startDestination,
   ) {
     composable("onboarding") {
       OnboardingScreen(
@@ -64,22 +73,7 @@ fun AppRoot() {
       )
     }
 
-    composable("main") {
-      if (
-          ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) !=
-              PackageManager.PERMISSION_GRANTED
-      ) {
-        // TODO: Consider calling
-        //    ActivityCompat#requestPermissions
-        // here to request the missing permissions, and then overriding
-        //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-        //                                          int[] grantResults)
-        // to handle the case where the user grants the permission. See the documentation
-        // for ActivityCompat#requestPermissions for more details.
-        navController.navigate("main")
-      }
-      MainScreen(navController, hidKeyboardManager)
-    }
+    composable("main") { MainScreen(navController, hidKeyboardManager) }
     composable("devices") { DevicesScreen(navController) }
     composable("new_device") {
       if (
