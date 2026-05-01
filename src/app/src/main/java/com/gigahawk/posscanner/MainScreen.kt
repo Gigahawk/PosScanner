@@ -2,6 +2,7 @@ package com.gigahawk.posscanner
 
 import android.content.Context
 import android.util.Log
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -36,6 +37,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,6 +121,7 @@ fun MainScreen(
                 }
               },
               actions = {
+                val availableCameras by viewModel.availableCameras.collectAsState()
                 Box {
                   IconButton(onClick = { showCameraDropdown = true }) {
                     Icon(
@@ -130,20 +133,23 @@ fun MainScreen(
                       expanded = showCameraDropdown,
                       onDismissRequest = { showCameraDropdown = false },
                   ) {
-                    DropdownMenuItem(
-                        text = { Text("Back Camera") },
-                        onClick = {
-                          viewModel.setCameraSelector(CameraSelector.DEFAULT_BACK_CAMERA)
-                          showCameraDropdown = false
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Front Camera") },
-                        onClick = {
-                          viewModel.setCameraSelector(CameraSelector.DEFAULT_FRONT_CAMERA)
-                          showCameraDropdown = false
-                        },
-                    )
+                    if (availableCameras.isEmpty()) {
+                      DropdownMenuItem(
+                          text = { Text("No cameras found") },
+                          onClick = { showCameraDropdown = false },
+                          enabled = false
+                      )
+                    } else {
+                      availableCameras.forEach { cameraItem ->
+                        DropdownMenuItem(
+                            text = { Text(cameraItem.label) },
+                            onClick = {
+                              viewModel.setCameraSelector(cameraItem.selector)
+                              showCameraDropdown = false
+                            },
+                        )
+                      }
+                    }
                   }
                 }
               },
@@ -178,7 +184,12 @@ class CameraPreviewViewModel : ViewModel() {
   private val _cameraSelector = MutableStateFlow(CameraSelector.DEFAULT_BACK_CAMERA)
   val cameraSelector: StateFlow<CameraSelector> = _cameraSelector
 
+  private val _availableCameras = MutableStateFlow<List<CameraItem>>(emptyList())
+  val availableCameras: StateFlow<List<CameraItem>> = _availableCameras
+
   private var preview: Preview? = null
+
+  data class CameraItem(val label: String, val selector: CameraSelector)
 
   fun getPreview(): Preview {
     return preview ?: Preview.Builder().build().also { preview = it }
@@ -192,6 +203,22 @@ class CameraPreviewViewModel : ViewModel() {
 
   suspend fun bindToCamera(appContext: Context, lifecycleOwner: LifecycleOwner) {
     val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
+    
+    // Update available cameras list
+    val cameraInfos = processCameraProvider.availableCameraInfos
+    _availableCameras.value = cameraInfos.mapIndexed { index, info ->
+        val facing = when (info.lensFacing) {
+            CameraSelector.LENS_FACING_BACK -> "Back"
+            CameraSelector.LENS_FACING_FRONT -> "Front"
+            CameraSelector.LENS_FACING_EXTERNAL -> "External"
+            else -> "Unknown"
+        }
+        CameraItem(
+            label = "$facing Camera $index",
+            selector = CameraSelector.Builder().addCameraFilter { it.filter { i -> i == info } }.build()
+        )
+    }
+
     cameraSelector.collect { selector ->
       Log.d("CameraPreview", "Binding to camera with selector: $selector")
       try {
