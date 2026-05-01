@@ -67,7 +67,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x02.toByte(), //       COLLECTION (Logical)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x09.toByte(),
           0x01.toByte(), //   USAGE (Pointer)
           0xa1.toByte(),
@@ -115,7 +115,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x02.toByte(), //       COLLECTION (Logical)
           0x85.toByte(),
-          0x06.toByte(), //   REPORT_ID (Feature)
+          0x02.toByte(), //   REPORT_ID (Feature)
           0x09.toByte(),
           0x48.toByte(), //         USAGE (Resolution Multiplier)
           0x15.toByte(),
@@ -133,7 +133,7 @@ object DescriptorCollection {
           0xb1.toByte(),
           0x02.toByte(), //         FEATURE (Data,Var,Abs)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           // 0x05.toByte(), 0x01.toByte(),                         //     USAGE_PAGE (Generic
           // Desktop)
           0x09.toByte(),
@@ -156,7 +156,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x02.toByte(), //       COLLECTION (Logical)
           0x85.toByte(),
-          0x06.toByte(), //   REPORT_ID (Feature)
+          0x02.toByte(), //   REPORT_ID (Feature)
           0x09.toByte(),
           0x48.toByte(), //         USAGE (Resolution Multiplier)
           0x15.toByte(),
@@ -182,7 +182,7 @@ object DescriptorCollection {
           0xb1.toByte(),
           0x03.toByte(), //         FEATURE (Cnst,Var,Abs)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x05.toByte(),
           0x0c.toByte(), //         USAGE_PAGE (Consumer Devices)
           0x0a.toByte(),
@@ -209,7 +209,7 @@ object DescriptorCollection {
           0xA1.toByte(),
           0x01.toByte(), // Collection (Application)
           0x85.toByte(),
-          0x08.toByte(), //   REPORT_ID (Keyboard)
+          0x03.toByte(), //   REPORT_ID (Keyboard)
           0x05.toByte(),
           0x07.toByte(), //     Usage Page (Key Codes)
           0x19.toByte(),
@@ -232,8 +232,28 @@ object DescriptorCollection {
           0x08.toByte(), //     Report Size (8)
           0x81.toByte(),
           0x01.toByte(), //     Input (Constant) reserved byte(1)
+          0x05.toByte(),
+          0x08.toByte(), //     Usage Page (LEDs)
+          0x19.toByte(),
+          0x01.toByte(), //     Usage Minimum (1)
+          0x29.toByte(),
+          0x03.toByte(), //     Usage Maximum (3)
+          0x15.toByte(),
+          0x00.toByte(), //     Logical Minimum (0)
+          0x25.toByte(),
+          0x01.toByte(), //     Logical Maximum (1)
+          0x75.toByte(),
+          0x01.toByte(), //     Report Size (1)
           0x95.toByte(),
-          0x01.toByte(), //     Report Count (1)
+          0x03.toByte(), //     Report Count (3)
+          0x91.toByte(),
+          0x02.toByte(), //     Output (Data, Variable, Absolute)
+          0x95.toByte(),
+          0x05.toByte(), //     Report Count (5)
+          0x91.toByte(),
+          0x01.toByte(), //     Output (Constant)
+          0x95.toByte(),
+          0x06.toByte(), //     Report Count (6)
           0x75.toByte(),
           0x08.toByte(), //     Report Size (8)
           0x15.toByte(),
@@ -262,7 +282,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x01.toByte(), // COLLECTION (Application)
           0x85.toByte(),
-          0x06.toByte(), //   REPORT_ID (Feature)
+          0x02.toByte(), //   REPORT_ID (Feature)
           0x09.toByte(),
           0x48.toByte(), //         USAGE (Resolution Multiplier)
           0x15.toByte(),
@@ -280,7 +300,7 @@ object DescriptorCollection {
           0xb1.toByte(),
           0x02.toByte(), //         FEATURE (Data,Var,Abs)
           0x85.toByte(),
-          0x06.toByte(), //   REPORT_ID (Feature)
+          0x02.toByte(), //   REPORT_ID (Feature)
           0x09.toByte(),
           0x48.toByte(), //         USAGE (Resolution Multiplier)
           0x15.toByte(),
@@ -315,7 +335,7 @@ object DescriptorCollection {
           0xA1.toByte(),
           0x01.toByte(), // Collection (Application)
           0x85.toByte(),
-          0x08.toByte(), //   REPORT_ID (Keyboard)
+          0x03.toByte(), //   REPORT_ID (Keyboard)
           0x05.toByte(),
           0x07.toByte(), //     Usage Page (Key Codes)
           0x19.toByte(),
@@ -338,8 +358,28 @@ object DescriptorCollection {
           0x08.toByte(), //     Report Size (8)
           0x81.toByte(),
           0x01.toByte(), //     Input (Constant) reserved byte(1)
+          0x05.toByte(),
+          0x08.toByte(), //     Usage Page (LEDs)
+          0x19.toByte(),
+          0x01.toByte(), //     Usage Minimum (1)
+          0x29.toByte(),
+          0x03.toByte(), //     Usage Maximum (3)
+          0x15.toByte(),
+          0x00.toByte(), //     Logical Minimum (0)
+          0x25.toByte(),
+          0x01.toByte(), //     Logical Maximum (1)
+          0x75.toByte(),
+          0x01.toByte(), //     Report Size (1)
           0x95.toByte(),
-          0x01.toByte(), //     Report Count (1)
+          0x03.toByte(), //     Report Count (3)
+          0x91.toByte(),
+          0x02.toByte(), //     Output (Data, Variable, Absolute)
+          0x95.toByte(),
+          0x05.toByte(), //     Report Count (5)
+          0x91.toByte(),
+          0x01.toByte(), //     Output (Constant)
+          0x95.toByte(),
+          0x06.toByte(), //     Report Count (6)
           0x75.toByte(),
           0x08.toByte(), //     Report Size (8)
           0x15.toByte(),
@@ -366,7 +406,7 @@ object DescriptorCollection {
           0xA1.toByte(),
           0x01.toByte(), // Collection (Application)
           0x85.toByte(),
-          0x08.toByte(), //   REPORT_ID (Keyboard)
+          0x03.toByte(), //   REPORT_ID (Keyboard)
           0x05.toByte(),
           0x07.toByte(), //     Usage Page (Key Codes)
           0x19.toByte(),
@@ -389,8 +429,28 @@ object DescriptorCollection {
           0x08.toByte(), //     Report Size (8)
           0x81.toByte(),
           0x01.toByte(), //     Input (Constant) reserved byte(1)
+          0x05.toByte(),
+          0x08.toByte(), //     Usage Page (LEDs)
+          0x19.toByte(),
+          0x01.toByte(), //     Usage Minimum (1)
+          0x29.toByte(),
+          0x03.toByte(), //     Usage Maximum (3)
+          0x15.toByte(),
+          0x00.toByte(), //     Logical Minimum (0)
+          0x25.toByte(),
+          0x01.toByte(), //     Logical Maximum (1)
+          0x75.toByte(),
+          0x01.toByte(), //     Report Size (1)
           0x95.toByte(),
-          0x01.toByte(), //     Report Count (1)
+          0x03.toByte(), //     Report Count (3)
+          0x91.toByte(),
+          0x02.toByte(), //     Output (Data, Variable, Absolute)
+          0x95.toByte(),
+          0x05.toByte(), //     Report Count (5)
+          0x91.toByte(),
+          0x01.toByte(), //     Output (Constant)
+          0x95.toByte(),
+          0x06.toByte(), //     Report Count (6)
           0x75.toByte(),
           0x08.toByte(), //     Report Size (8)
           0x15.toByte(),
@@ -416,6 +476,8 @@ object DescriptorCollection {
           0x06.toByte(), // Usage (Keyboard)
           0xA1.toByte(),
           0x01.toByte(), // Collection (Application)
+          0x85.toByte(),
+          0x01.toByte(), //   REPORT_ID (Keyboard)
           0x05.toByte(),
           0x07.toByte(), //     Usage Page (Key Codes)
           0x19.toByte(),
@@ -455,7 +517,7 @@ object DescriptorCollection {
           0x75.toByte(),
           0x03.toByte(), //     Report Size (3)
           0x91.toByte(),
-          0x01.toByte(), //     Output (Data, Variable, Absolute), Led report padding
+          0x03.toByte(), //     Output (Constant, Variable, Absolute), Led report padding
           0x95.toByte(),
           0x06.toByte(), //     Report Count (6)
           0x75.toByte(),
@@ -485,7 +547,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x01.toByte(), // COLLECTION (Application)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x09.toByte(),
           0x01.toByte(), //   USAGE (Pointer)
           0xa1.toByte(),
@@ -544,7 +606,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x01.toByte(), // COLLECTION (Application)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x09.toByte(),
           0x01.toByte(), //   USAGE (Pointer)
           0xa1.toByte(),
@@ -609,7 +671,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x02.toByte(), //       COLLECTION (Logical)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x09.toByte(),
           0x01.toByte(), //   USAGE (Pointer)
           0xa1.toByte(),
@@ -657,7 +719,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x02.toByte(), //       COLLECTION (Logical)
           0x85.toByte(),
-          0x06.toByte(), //   REPORT_ID (Feature)
+          0x02.toByte(), //   REPORT_ID (Feature)
           0x09.toByte(),
           0x48.toByte(), //         USAGE (Resolution Multiplier)
           0x15.toByte(),
@@ -675,7 +737,7 @@ object DescriptorCollection {
           0xb1.toByte(),
           0x02.toByte(), //         FEATURE (Data,Var,Abs)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           // 0x05.toByte(), 0x01.toByte(),                         //     USAGE_PAGE (Generic
           // Desktop)
           0x09.toByte(),
@@ -698,7 +760,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x02.toByte(), //       COLLECTION (Logical)
           0x85.toByte(),
-          0x06.toByte(), //   REPORT_ID (Feature)
+          0x02.toByte(), //   REPORT_ID (Feature)
           0x09.toByte(),
           0x48.toByte(), //         USAGE (Resolution Multiplier)
           0x15.toByte(),
@@ -724,7 +786,7 @@ object DescriptorCollection {
           0xb1.toByte(),
           0x03.toByte(), //         FEATURE (Cnst,Var,Abs)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x05.toByte(),
           0x0c.toByte(), //         USAGE_PAGE (Consumer Devices)
           0x0a.toByte(),
@@ -756,7 +818,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x01.toByte(), // COLLECTION (Application)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x09.toByte(),
           0x01.toByte(), //   USAGE (Pointer)
           0xa1.toByte(),
@@ -883,7 +945,7 @@ object DescriptorCollection {
           0xa1.toByte(),
           0x01.toByte(), // COLLECTION (Application)
           0x85.toByte(),
-          0x04.toByte(), //   REPORT_ID (Mouse)
+          0x01.toByte(), //   REPORT_ID (Mouse)
           0x09.toByte(),
           0x01.toByte(), //   USAGE (Pointer)
           0xa1.toByte(),

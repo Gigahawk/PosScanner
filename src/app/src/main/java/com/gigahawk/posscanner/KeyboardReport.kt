@@ -5,7 +5,7 @@ import kotlin.experimental.or
 
 @JvmInline
 @Suppress("MagicNumber")
-value class KeyboardReport(val bytes: ByteArray = ByteArray(3)) {
+value class KeyboardReport(val bytes: ByteArray = ByteArray(8)) {
 
   var leftControl: Boolean
     get() = bytes[0] and 0b1 != 0.toByte()
@@ -20,39 +20,39 @@ value class KeyboardReport(val bytes: ByteArray = ByteArray(3)) {
     }
 
   var leftAlt: Boolean
-    get() = bytes[0] and 0b10 != 0.toByte()
+    get() = bytes[0] and 0b100 != 0.toByte()
     set(value) {
       bytes[0] = if (value) bytes[0] or 0b100 else bytes[0] and 0b11111011.toByte()
     }
 
   var leftGui: Boolean
-    get() = bytes[0] and 0b10 != 0.toByte()
+    get() = bytes[0] and 0b1000 != 0.toByte()
     set(value) {
       bytes[0] = if (value) bytes[0] or 0b1000 else bytes[0] and 0b11110111.toByte()
     }
 
   var rightControl: Boolean
-    get() = bytes[0] and 0b1 != 0.toByte()
+    get() = bytes[0] and 0b10000 != 0.toByte()
     set(value) {
       bytes[0] = if (value) bytes[0] or 0b10000 else bytes[0] and 0b11101111.toByte()
     }
 
   var rightShift: Boolean
-    get() = bytes[0] and 0b10 != 0.toByte()
+    get() = bytes[0] and 0b100000 != 0.toByte()
     set(value) {
       bytes[0] = if (value) bytes[0] or 0b100000 else bytes[0] and 0b11011111.toByte()
     }
 
   var rightAlt: Boolean
-    get() = bytes[0] and 0b10 != 0.toByte()
+    get() = bytes[0] and 0b1000000 != 0.toByte()
     set(value) {
       bytes[0] = if (value) bytes[0] or 0b1000000 else bytes[0] and 0b10111111.toByte()
     }
 
   var rightGui: Boolean
-    get() = bytes[0] and 0b10 != 0.toByte()
+    get() = bytes[0] and 0b10000000.toByte() != 0.toByte()
     set(value) {
-      bytes[0] = if (value) bytes[0] or 0b10000000.toByte() else bytes[0] and 0b01111111
+      bytes[0] = if (value) bytes[0] or 0b10000000.toByte() else bytes[0] and 0b01111111.toByte()
     }
 
   var key1: Byte
@@ -61,31 +61,40 @@ value class KeyboardReport(val bytes: ByteArray = ByteArray(3)) {
       bytes[2] = value
     }
 
-  //    var key2: Byte
-  //        get() = bytes[3]
-  //        set(value) { bytes[3] = value }
-  //
-  //
-  //    var key3: Byte
-  //        get() = bytes[4]
-  //        set(value) { bytes[4] = value }
-  //
-  //    var key4: Byte
-  //        get() = bytes[5]
-  //        set(value) { bytes[5] = value }
-  //
-  //    var key5: Byte
-  //        get() = bytes[6]
-  //        set(value) { bytes[6] = value }
-  //
-  //    var key6: Byte
-  //        get() = bytes[7]
-  //        set(value) { bytes[7] = value }
+  var key2: Byte
+    get() = bytes[3]
+    set(value) {
+      bytes[3] = value
+    }
+
+  var key3: Byte
+    get() = bytes[4]
+    set(value) {
+      bytes[4] = value
+    }
+
+  var key4: Byte
+    get() = bytes[5]
+    set(value) {
+      bytes[5] = value
+    }
+
+  var key5: Byte
+    get() = bytes[6]
+    set(value) {
+      bytes[6] = value
+    }
+
+  var key6: Byte
+    get() = bytes[7]
+    set(value) {
+      bytes[7] = value
+    }
 
   fun reset() = bytes.fill(0)
 
   companion object {
-    const val ID = 8
+    const val ID = 1
     //        const val KEYCODE_A = 4
     //        const val KEYCODE_B = 5
     //        const val KEYCODE_C = 6

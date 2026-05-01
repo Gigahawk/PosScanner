@@ -42,8 +42,8 @@ class HidKeyboardManager(private val context: Context) {
         "PosScanner HID",
         "Mobile Barcode Scanner",
         "Gigahawk",
-        BluetoothHidDevice.SUBCLASS1_COMBO,
-        DescriptorCollection.KEYBOARD_MODIFIED,
+        BluetoothHidDevice.SUBCLASS1_KEYBOARD,
+        DescriptorCollection.KEYBOARD,
     )
   }
 
@@ -116,11 +116,13 @@ class HidKeyboardManager(private val context: Context) {
     }
 
     Log.d(TAG, "Sending keypress A to device ${targetDevice!!.name}")
+    val report = KeyboardReport()
+    report.key1 = 0x04.toByte() // KEYCODE_A
     val result =
         hidDevice!!.sendReport(
             targetDevice,
             KeyboardReport.ID,
-            byteArrayOf(0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00),
+            report.bytes,
         )
     if (result) {
       Log.d(TAG, "Send successful")
@@ -137,10 +139,11 @@ class HidKeyboardManager(private val context: Context) {
     }
 
     Log.d(TAG, "Sending keypress released to device ${targetDevice!!.name}")
+    val report = KeyboardReport()
     hidDevice?.sendReport(
         targetDevice,
         KeyboardReport.ID,
-        byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+        report.bytes,
     )
   }
 }
