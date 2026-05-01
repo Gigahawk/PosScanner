@@ -2,12 +2,14 @@ package com.gigahawk.posscanner
 
 import android.content.Context
 import android.util.Log
-import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalLensFacing
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -49,6 +51,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -65,11 +69,11 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 
 @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -83,6 +87,7 @@ fun MainScreen(
   val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
   val scope = rememberCoroutineScope()
   var showCameraDropdown by remember { mutableStateOf(false) }
+  val connectedDevice by hidKeyboardManager.connectedDevice.collectAsState()
 
   ModalNavigationDrawer(
       drawerContent = {
@@ -127,13 +132,14 @@ fun MainScreen(
                 Column {
                   Text("PosScanner")
                   val selectedCamera by viewModel.selectedCameraItem.collectAsState()
-                  selectedCamera?.let {
-                    Text(
-                        text = it.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                  }
+
+                  Text(
+                      text = "HID: ${connectedDevice?.name ?: "Disconnected"}",
+                      style = MaterialTheme.typography.labelSmall,
+                      color =
+                          if (connectedDevice != null) MaterialTheme.colorScheme.primary
+                          else MaterialTheme.colorScheme.outline,
+                  )
                 }
               },
               navigationIcon = {
@@ -144,10 +150,12 @@ fun MainScreen(
               actions = {
                 val availableCameras by viewModel.availableCameras.collectAsState()
                 Box {
-                  IconButton(onClick = {
-                    scope.launch { viewModel.refreshCameras(context.applicationContext) }
-                    showCameraDropdown = true
-                  }) {
+                  IconButton(
+                      onClick = {
+                        scope.launch { viewModel.refreshCameras(context.applicationContext) }
+                        showCameraDropdown = true
+                      }
+                  ) {
                     Icon(
                         imageVector = Icons.Default.Cameraswitch,
                         contentDescription = "Switch Camera",
@@ -161,7 +169,7 @@ fun MainScreen(
                       DropdownMenuItem(
                           text = { Text("No cameras found") },
                           onClick = { showCameraDropdown = false },
-                          enabled = false
+                          enabled = false,
                       )
                     } else {
                       availableCameras.forEach { cameraItem ->
@@ -183,7 +191,7 @@ fun MainScreen(
       val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
       Box(modifier = Modifier.padding(padding).fillMaxSize()) {
         if (cameraPermissionState.status.isGranted) {
-          CameraPreviewContent(viewModel = viewModel)
+          CameraPreviewContent(viewModel = viewModel, hidKeyboardManager = hidKeyboardManager)
         } else {
           Column(modifier = Modifier.padding(16.dp)) {
             val textToShow =
@@ -226,23 +234,30 @@ class CameraPreviewViewModel : ViewModel() {
     }
   }
 
+  @androidx.annotation.OptIn(ExperimentalLensFacing::class)
   suspend fun refreshCameras(appContext: Context) {
-    val provider = cameraProvider ?: ProcessCameraProvider.awaitInstance(appContext).also { cameraProvider = it }
+    val provider =
+        cameraProvider
+            ?: ProcessCameraProvider.awaitInstance(appContext).also { cameraProvider = it }
 
     // Update available cameras list
     val cameraInfos = provider.availableCameraInfos
     val items =
         cameraInfos.mapIndexed { index, info ->
-          @Suppress("UnsafeOptInUsageError")
           val facing =
               when (info.lensFacing) {
-                CameraSelector.LENS_FACING_BACK -> "Back"
+                CameraSelector.LENS_FACING_BACK -> "Rear"
                 CameraSelector.LENS_FACING_FRONT -> "Front"
                 CameraSelector.LENS_FACING_EXTERNAL -> "External"
                 else -> "Unknown"
               }
+          val camType =
+              if (info.intrinsicZoomRatio == 1.0.toFloat()) "Standard"
+              else if (info.intrinsicZoomRatio < 1.0) "Wide" else "Zoom"
+
+          val label = "Camera $index ($facing $camType)"
           CameraItem(
-              label = "$facing Camera $index",
+              label = label,
               selector =
                   CameraSelector.Builder().addCameraFilter { it.filter { i -> i == info } }.build(),
           )
@@ -265,15 +280,15 @@ class CameraPreviewViewModel : ViewModel() {
     } catch (e: Exception) {
       Log.e("CameraPreview", "Failed to refresh cameras", e)
     }
-    
+
     val provider = cameraProvider ?: return
 
     selectedCameraItem.collectLatest { item ->
       if (item == null) return@collectLatest
-      
+
       // Debounce rapid switching and give the system time to release previous camera
       delay(500)
-      
+
       if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.INITIALIZED)) {
         Log.w("CameraPreview", "Lifecycle not initialized, skipping bind")
         return@collectLatest
@@ -293,8 +308,10 @@ class CameraPreviewViewModel : ViewModel() {
   }
 }
 
+@androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
 @Composable
 fun CameraPreviewContent(
+    hidKeyboardManager: HidKeyboardManager,
     modifier: Modifier = Modifier,
     viewModel: CameraPreviewViewModel = viewModel(),
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
@@ -313,8 +330,8 @@ fun CameraPreviewContent(
     AndroidView(
         factory = { ctx ->
           Log.d("CameraPreview", "Creating PreviewView")
-          PreviewView(ctx).apply { 
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE 
+          PreviewView(ctx).apply {
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             scaleType = PreviewView.ScaleType.FILL_CENTER
           }
         },
@@ -328,31 +345,41 @@ fun CameraPreviewContent(
     selectedCamera?.let {
       Text(
           text = it.label,
-          modifier = Modifier
-              .padding(16.dp)
-              .padding(top = 8.dp),
-          style = MaterialTheme.typography.labelLarge.copy(
-              shadow = Shadow(
-                  color = Color.Black,
-                  blurRadius = 8f
-              )
-          ),
+          modifier = Modifier.padding(16.dp).padding(top = 8.dp),
+          style =
+              MaterialTheme.typography.labelLarge.copy(
+                  shadow = Shadow(color = Color.Black, blurRadius = 8f)
+              ),
           color = Color.White,
       )
     }
 
     IconButton(
-        onClick = { /* Shutter action */ },
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 32.dp)
-            .size(80.dp)
+        onClick = {},
+        modifier =
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).size(80.dp).pointerInput(
+                Unit
+            ) {
+              awaitPointerEventScope {
+                while (true) {
+                  awaitFirstDown(pass = PointerEventPass.Initial)
+
+                  Log.d("CameraPreview", "Shutter clicked")
+                  hidKeyboardManager.sendKeyA()
+
+                  waitForUpOrCancellation(pass = PointerEventPass.Initial)
+
+                  Log.d("CameraPreview", "Shutter released")
+                  hidKeyboardManager.sendKeyRelease()
+                }
+              }
+            },
     ) {
       Icon(
           imageVector = Icons.Default.RadioButtonChecked,
           contentDescription = "Shutter",
           modifier = Modifier.fillMaxSize(),
-          tint = Color.White
+          tint = Color.White,
       )
     }
   }

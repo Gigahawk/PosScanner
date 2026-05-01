@@ -11,6 +11,9 @@ import android.content.Context
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class HidKeyboardManager(private val context: Context) {
 
@@ -22,11 +25,22 @@ class HidKeyboardManager(private val context: Context) {
   private var hidDevice: BluetoothHidDevice? = null
   private var targetDevice: BluetoothDevice? = null
 
+  private val _connectedDevice = MutableStateFlow<BluetoothDevice?>(null)
+  val connectedDevice: StateFlow<BluetoothDevice?> = _connectedDevice.asStateFlow()
+
   private val callback =
       object : BluetoothHidDevice.Callback() {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
           Log.d(TAG, "State: $state, Device: ${device?.name}")
+          if (state == BluetoothProfile.STATE_CONNECTED) {
+            _connectedDevice.value = device
+            targetDevice = device
+          } else if (state == BluetoothProfile.STATE_DISCONNECTED) {
+            if (_connectedDevice.value == device) {
+              _connectedDevice.value = null
+            }
+          }
           super.onConnectionStateChanged(device, state)
         }
 
@@ -66,12 +80,21 @@ class HidKeyboardManager(private val context: Context) {
           @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
           override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
             Log.d(TAG, "Service Connected, profile: $profile")
-            hidDevice = proxy as BluetoothHidDevice
+            val proxyHid = proxy as? BluetoothHidDevice
+            hidDevice = proxyHid
 
-            if (hidDevice != null) {
+            if (proxyHid != null) {
+              // Check for already connected devices
+              val connected = proxyHid.connectedDevices
+              if (connected.isNotEmpty()) {
+                Log.d(TAG, "Found already connected device: ${connected[0].name}")
+                _connectedDevice.value = connected[0]
+                targetDevice = connected[0]
+              }
+
               Log.d(TAG, "Calling registerApp")
               val result =
-                  hidDevice!!.registerApp(
+                  proxyHid.registerApp(
                       sdpSettings,
                       null,
                       qosSettings,
