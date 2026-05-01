@@ -1,14 +1,15 @@
 package com.gigahawk.posscanner
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,26 +60,19 @@ fun OnboardingScreen(onFinish: () -> Unit, vm: OnboardingViewModel = viewModel()
         userScrollEnabled = false,
     ) { page ->
       when (page) {
-        0 -> OnboardingPage("Bluetooth Setup", "Bluetooth permissions are required")
-        1 ->
-            BluetoothPermissionPage(
-                onGranted = {
-                  scope.launch {
-                    vm.bluetoothGranted = true
-                    pagerState.animateScrollToPage(2)
-                  }
-                },
-                onDenied = {
-                  vm.bluetoothGranted = true
-                  Log.e("APP", "Permission denied")
-                },
+        0 ->
+            OnboardingPage(
+                "Welcome",
+                "Bluetooth and Camera permissions are required to use this app.",
             )
-        2 -> OnboardingPage("Ready to go")
+        1 -> GrantPermissionsPage(vm)
+        2 -> OnboardingPage("Ready to go", "You can now start using PosScanner.")
       }
     }
+
     val isNextEnabled =
         when (pagerState.currentPage) {
-          1 -> vm.bluetoothGranted
+          1 -> vm.bluetoothGranted && vm.cameraGranted
           else -> true
         }
 
@@ -107,6 +103,7 @@ fun OnboardingScreen(onFinish: () -> Unit, vm: OnboardingViewModel = viewModel()
 
 class OnboardingViewModel : ViewModel() {
   var bluetoothGranted by mutableStateOf(false)
+  var cameraGranted by mutableStateOf(false)
 }
 
 @Composable
@@ -122,59 +119,111 @@ fun OnboardingPage(title: String, description: String = "") {
   }
 }
 
+/**
+ * A reusable Composable that creates a permission launcher. It must be called directly within a
+ * Composable function.
+ */
 @Composable
-fun BluetoothPermissionPage(onGranted: () -> Unit, onDenied: () -> Unit = {}) {
+fun rememberPermissionLauncher(
+    permission: String,
+    onResult: (Boolean) -> Unit,
+): ManagedActivityResultLauncher<String, Boolean> {
+  val activity = LocalActivity.current!!
   val context = LocalContext.current
-  val permission = Manifest.permission.BLUETOOTH_CONNECT
-  val activity: Activity = LocalActivity.current!!
-
-  val launcher =
-      rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission()) {
-          isGranted ->
-        if (isGranted) {
-          Log.d("APP", "Bluetooth permission granted")
-          onGranted()
-        } else {
-          Log.e("APP", "Bluetooth permission denied")
-          onDenied()
-          Toast.makeText(context, "Bluetooth permissions are required", Toast.LENGTH_SHORT).show()
-          val shouldShowRationale =
-              ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
-          if (!shouldShowRationale) {
-            Toast.makeText(
-                    context,
-                    "Allow permission for 'Nearby devices' to continue",
-                    Toast.LENGTH_LONG,
-                )
-                .show()
-            val intent =
-                Intent(
-                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.fromParts("package", context.packageName, null),
-                )
-            context.startActivity(intent)
-          }
-        }
+  return rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.RequestPermission()
+  ) { isGranted ->
+    onResult(isGranted)
+    if (isGranted) {
+      Log.d("APP", "Permission $permission granted")
+    } else {
+      Log.e("APP", "Permission $permission denied")
+      val shouldShowRationale =
+          ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+      if (!shouldShowRationale) {
+        Toast.makeText(
+                context,
+                "Permission permanently denied. Please enable '$permission' in settings.",
+                Toast.LENGTH_LONG,
+            )
+            .show()
+        val intent =
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+              data = Uri.fromParts("package", context.packageName, null)
+            }
+        context.startActivity(intent)
+      } else {
+        Toast.makeText(context, "Permission is required to continue", Toast.LENGTH_SHORT).show()
       }
+    }
+  }
+}
+
+@Composable
+fun GrantPermissionsPage(vm: OnboardingViewModel) {
+  val context = LocalContext.current
+  val btPermission = Manifest.permission.BLUETOOTH_CONNECT
+  val camPermission = Manifest.permission.CAMERA
+
+  // Check initial state when the page is displayed
+  LaunchedEffect(Unit) {
+    val btOk =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          ContextCompat.checkSelfPermission(context, btPermission) ==
+              PackageManager.PERMISSION_GRANTED
+        } else true
+    val camOk =
+        ContextCompat.checkSelfPermission(context, camPermission) ==
+            PackageManager.PERMISSION_GRANTED
+
+    vm.bluetoothGranted = btOk
+    vm.cameraGranted = camOk
+  }
+
+  val bluetoothLauncher =
+      rememberPermissionLauncher(
+          permission = btPermission,
+          onResult = { isGranted -> vm.bluetoothGranted = isGranted },
+      )
+
+  val cameraLauncher =
+      rememberPermissionLauncher(
+          permission = camPermission,
+          onResult = { isGranted -> vm.cameraGranted = isGranted },
+      )
 
   Column(
       modifier = Modifier.fillMaxSize().padding(32.dp),
       verticalArrangement = Arrangement.Center,
       horizontalAlignment = Alignment.CenterHorizontally,
   ) {
-    Text("We need Bluetooth permission to continue")
+    Text("Required Permissions", style = MaterialTheme.typography.headlineSmall)
+    Spacer(modifier = Modifier.height(24.dp))
 
     Button(
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !vm.bluetoothGranted,
         onClick = {
           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            launcher.launch(permission)
+            bluetoothLauncher.launch(btPermission)
           } else {
-            // No runtime permission required pre-Android 12
-            onGranted()
+            vm.bluetoothGranted = true
           }
-        }
+        },
     ) {
-      Text("Grant Permission")
+      Text(
+          if (vm.bluetoothGranted) "Bluetooth Permission Granted" else "Grant Bluetooth Permission"
+      )
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Button(
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !vm.cameraGranted,
+        onClick = { cameraLauncher.launch(camPermission) },
+    ) {
+      Text(if (vm.cameraGranted) "Camera Permission Granted" else "Grant Camera Permission")
     }
   }
 }
