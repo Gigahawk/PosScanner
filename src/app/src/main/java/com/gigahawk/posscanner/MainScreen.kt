@@ -44,9 +44,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -61,7 +64,9 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -71,6 +76,7 @@ fun MainScreen(
     hidKeyboardManager: HidKeyboardManager,
     viewModel: CameraPreviewViewModel = viewModel(),
 ) {
+  val context = LocalContext.current
   val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
   val scope = rememberCoroutineScope()
   var showCameraDropdown by remember { mutableStateOf(false) }
@@ -114,7 +120,19 @@ fun MainScreen(
     Scaffold(
         topBar = {
           TopAppBar(
-              title = { Text("PosScanner") },
+              title = {
+                Column {
+                  Text("PosScanner")
+                  val selectedCamera by viewModel.selectedCameraItem.collectAsState()
+                  selectedCamera?.let {
+                    Text(
+                        text = it.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                  }
+                }
+              },
               navigationIcon = {
                 IconButton(onClick = { scope.launch { drawerState.open() } }) {
                   Icon(imageVector = MaterialSymbolsMenu, contentDescription = "Menu")
@@ -123,7 +141,10 @@ fun MainScreen(
               actions = {
                 val availableCameras by viewModel.availableCameras.collectAsState()
                 Box {
-                  IconButton(onClick = { showCameraDropdown = true }) {
+                  IconButton(onClick = {
+                    scope.launch { viewModel.refreshCameras(context.applicationContext) }
+                    showCameraDropdown = true
+                  }) {
                     Icon(
                         imageVector = Icons.Default.Cameraswitch,
                         contentDescription = "Switch Camera",
@@ -144,7 +165,7 @@ fun MainScreen(
                         DropdownMenuItem(
                             text = { Text(cameraItem.label) },
                             onClick = {
-                              viewModel.setCameraSelector(cameraItem.selector)
+                              viewModel.setSelectedCameraItem(cameraItem)
                               showCameraDropdown = false
                             },
                         )
@@ -181,13 +202,14 @@ fun MainScreen(
 }
 
 class CameraPreviewViewModel : ViewModel() {
-  private val _cameraSelector = MutableStateFlow(CameraSelector.DEFAULT_BACK_CAMERA)
-  val cameraSelector: StateFlow<CameraSelector> = _cameraSelector
+  private val _selectedCameraItem = MutableStateFlow<CameraItem?>(null)
+  val selectedCameraItem: StateFlow<CameraItem?> = _selectedCameraItem
 
   private val _availableCameras = MutableStateFlow<List<CameraItem>>(emptyList())
   val availableCameras: StateFlow<List<CameraItem>> = _availableCameras
 
   private var preview: Preview? = null
+  private var cameraProvider: ProcessCameraProvider? = null
 
   data class CameraItem(val label: String, val selector: CameraSelector)
 
@@ -195,38 +217,74 @@ class CameraPreviewViewModel : ViewModel() {
     return preview ?: Preview.Builder().build().also { preview = it }
   }
 
-  fun setCameraSelector(selector: CameraSelector) {
-    if (_cameraSelector.value != selector) {
-      _cameraSelector.value = selector
+  fun setSelectedCameraItem(item: CameraItem) {
+    if (_selectedCameraItem.value != item) {
+      _selectedCameraItem.value = item
+    }
+  }
+
+  suspend fun refreshCameras(appContext: Context) {
+    val provider = cameraProvider ?: ProcessCameraProvider.awaitInstance(appContext).also { cameraProvider = it }
+
+    // Update available cameras list
+    val cameraInfos = provider.availableCameraInfos
+    val items =
+        cameraInfos.mapIndexed { index, info ->
+          @Suppress("UnsafeOptInUsageError")
+          val facing =
+              when (info.lensFacing) {
+                CameraSelector.LENS_FACING_BACK -> "Back"
+                CameraSelector.LENS_FACING_FRONT -> "Front"
+                CameraSelector.LENS_FACING_EXTERNAL -> "External"
+                else -> "Unknown"
+              }
+          CameraItem(
+              label = "$facing Camera $index",
+              selector =
+                  CameraSelector.Builder().addCameraFilter { it.filter { i -> i == info } }.build(),
+          )
+        }
+    _availableCameras.value = items
+
+    // Set initial selection or handle disconnection
+    val currentSelection = _selectedCameraItem.value
+    if (currentSelection != null && items.none { it.label == currentSelection.label }) {
+      _selectedCameraItem.value = items.find { it.label.startsWith("Back") } ?: items.firstOrNull()
+    } else if (currentSelection == null && items.isNotEmpty()) {
+      val default = items.find { it.label.startsWith("Back") } ?: items.first()
+      _selectedCameraItem.value = default
     }
   }
 
   suspend fun bindToCamera(appContext: Context, lifecycleOwner: LifecycleOwner) {
-    val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
-    
-    // Update available cameras list
-    val cameraInfos = processCameraProvider.availableCameraInfos
-    _availableCameras.value = cameraInfos.mapIndexed { index, info ->
-        val facing = when (info.lensFacing) {
-            CameraSelector.LENS_FACING_BACK -> "Back"
-            CameraSelector.LENS_FACING_FRONT -> "Front"
-            CameraSelector.LENS_FACING_EXTERNAL -> "External"
-            else -> "Unknown"
-        }
-        CameraItem(
-            label = "$facing Camera $index",
-            selector = CameraSelector.Builder().addCameraFilter { it.filter { i -> i == info } }.build()
-        )
+    try {
+      refreshCameras(appContext)
+    } catch (e: Exception) {
+      Log.e("CameraPreview", "Failed to refresh cameras", e)
     }
+    
+    val provider = cameraProvider ?: return
 
-    cameraSelector.collect { selector ->
-      Log.d("CameraPreview", "Binding to camera with selector: $selector")
+    selectedCameraItem.collectLatest { item ->
+      if (item == null) return@collectLatest
+      
+      // Debounce rapid switching and give the system time to release previous camera
+      delay(500)
+      
+      if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.INITIALIZED)) {
+        Log.w("CameraPreview", "Lifecycle not initialized, skipping bind")
+        return@collectLatest
+      }
+
+      Log.d("CameraPreview", "Binding to camera: ${item.label}")
       try {
-        processCameraProvider.unbindAll()
-        processCameraProvider.bindToLifecycle(lifecycleOwner, selector, getPreview())
+        provider.unbindAll()
+        provider.bindToLifecycle(lifecycleOwner, item.selector, getPreview())
         Log.d("CameraPreview", "Binding successful")
       } catch (e: Exception) {
-        Log.e("CameraPreview", "Binding failed", e)
+        Log.e("CameraPreview", "Binding failed for ${item.label}", e)
+        // If binding fails, it might be because the camera is being used by another app
+        // or was just disconnected.
       }
     }
   }
@@ -239,6 +297,7 @@ fun CameraPreviewContent(
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
 ) {
   val context = LocalContext.current
+  val selectedCamera by viewModel.selectedCameraItem.collectAsState()
 
   DisposableEffect(viewModel) {
     onDispose {
@@ -247,17 +306,38 @@ fun CameraPreviewContent(
     }
   }
 
-  AndroidView(
-      factory = { ctx ->
-        Log.d("CameraPreview", "Creating PreviewView")
-        PreviewView(ctx).apply { implementationMode = PreviewView.ImplementationMode.COMPATIBLE }
-      },
-      modifier = modifier.fillMaxSize(),
-      update = { previewView ->
-        Log.d("CameraPreview", "Updating surface provider")
-        viewModel.getPreview().setSurfaceProvider(previewView.surfaceProvider)
-      },
-  )
+  Box(modifier = modifier.fillMaxSize()) {
+    AndroidView(
+        factory = { ctx ->
+          Log.d("CameraPreview", "Creating PreviewView")
+          PreviewView(ctx).apply { 
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE 
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+          }
+        },
+        modifier = Modifier.fillMaxSize(),
+        update = { previewView ->
+          Log.d("CameraPreview", "Updating surface provider")
+          viewModel.getPreview().setSurfaceProvider(previewView.surfaceProvider)
+        },
+    )
+
+    selectedCamera?.let {
+      Text(
+          text = it.label,
+          modifier = Modifier
+              .padding(16.dp)
+              .padding(top = 8.dp),
+          style = MaterialTheme.typography.labelLarge.copy(
+              shadow = Shadow(
+                  color = Color.Black,
+                  blurRadius = 8f
+              )
+          ),
+          color = Color.White,
+      )
+    }
+  }
 
   LaunchedEffect(lifecycleOwner, viewModel) {
     viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
