@@ -3,7 +3,10 @@ package com.gigahawk.posscanner
 import android.content.Context
 import android.util.Log
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ExperimentalLensFacing
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
@@ -69,6 +72,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
+import com.google.mlkit.vision.common.InputImage
+import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -105,7 +110,12 @@ fun MainScreen(
                 icon = {
                   Icon(imageVector = MaterialSymbolsBarcodeReader, contentDescription = "devices")
                 },
-                onClick = {},
+                onClick = {
+                  scope.launch {
+                    drawerState.close()
+                    navController.navigate("settings")
+                  }
+                },
             )
             NavigationDrawerItem(
                 label = { Text("Bluetooth devices") },
@@ -221,6 +231,29 @@ class CameraPreviewViewModel : ViewModel() {
 
   private var preview: Preview? = null
   private var cameraProvider: ProcessCameraProvider? = null
+
+  private val analysisExecutor = Executors.newSingleThreadExecutor()
+  private val _scanResult = MutableStateFlow<String?>(null)
+  val scanResult: StateFlow<String?> = _scanResult
+
+  private var imageAnalysis: ImageAnalysis? = null
+
+  fun getImageAnalysis(): ImageAnalysis {
+    return imageAnalysis
+        ?: ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+            .also {
+              it.setAnalyzer(analysisExecutor) { imageProxy -> processImageProxy(imageProxy) }
+              imageAnalysis = it
+            }
+  }
+
+  @androidx.annotation.OptIn(ExperimentalGetImage::class)
+  private fun processImageProxy(imageProxy: ImageProxy) {
+    val mediaImage = imageProxy.image ?: return
+    val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+  }
 
   data class CameraItem(val label: String, val selector: CameraSelector)
 

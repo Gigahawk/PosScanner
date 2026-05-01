@@ -1,5 +1,7 @@
 [versions]
 agp = "9.1.1"
+barcodeScanning = "18.3.1"
+core = "3.5.4"
 coreKtx = "1.18.0"
 datastorePreferences = "1.2.1"
 iconsMaterialSymbolsOutlinedCmp = "2.2.1"
@@ -24,6 +26,8 @@ androidx-compose-material-icons-extended = { module = "androidx.compose.material
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
+barcode-scanning = { module = "com.google.android.gms:play-services-mlkit-barcode-scanning", version.ref = "barcodeScanning" }
+core = { module = "com.google.zxing:core", version.ref = "core" }
 icons-material-symbols-outlined-cmp = { module = "com.composables:icons-material-symbols-outlined-cmp", version.ref = "iconsMaterialSymbolsOutlinedCmp" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
