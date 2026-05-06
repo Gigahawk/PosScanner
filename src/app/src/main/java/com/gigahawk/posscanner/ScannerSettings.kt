@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+//import zxingcpp.BarcodeReader.Format as ZXingCppFormat
 
 const val STATE_STOP_TIMEOUT_MS: Long = 5000
 
@@ -101,6 +102,15 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
         it.map { value -> ZxingBarcodeFormat.fromString(value) }.toSet()
       }
 
+  val zxingCppBarcodeFormats =
+      dataStore.asStateFlow(
+          viewModelScope,
+          key = PreferencesKeys.ZXING_CPP_BARCODE_FORMATS,
+          defaultValue = ZxingCppBarcodeFormat.entries.map { e -> e.displayName }.toSet(),
+      ) {
+        it.map { value -> ZxingCppBarcodeFormat.fromString(value) }.toSet()
+      }
+
   val outputFormats =
       dataStore.asStateFlow(
           viewModelScope,
@@ -171,7 +181,8 @@ enum class TriggerMode(val value: Int, val displayName: String, val description:
 
 enum class ScanBackend(val value: Int, val displayName: String) {
   MLKIT(0, "ML Kit"),
-  ZXING(1, "ZXing");
+  ZXING(1, "ZXing"),
+  ZXING_CPP(2, "ZXing-C++");
 
   companion object {
     fun fromInt(value: Int) = entries.find { it.value == value } ?: MLKIT
@@ -265,5 +276,44 @@ enum class CodecErrorMode(val value: Int, val displayName: String, val descripti
 
   companion object {
     fun fromInt(value: Int) = CodecErrorMode.entries.find { it.value == value } ?: IGNORE
+  }
+}
+
+//enum class ZxingCppBarcodeFormat(val displayName: String, val zxingValue: ZXingCppFormat) {
+enum class ZxingCppBarcodeFormat(val displayName: String, val zxingValue: ZXingFormat) {
+  QR_CODE("QR Code", ZXingFormat.QR_CODE);
+
+  //NONE("None", ZXingCppFormat.NONE),
+  //AZTEC("Aztec", ZXingCppFormat.AZTEC),
+  //CODABAR("Codabar", ZXingCppFormat.CODABAR),
+  //CODE_39("Code 39", ZXingCppFormat.CODE_39),
+  //CODE_93("Code 93", ZXingCppFormat.CODE_93),
+  //CODE_128("Code 128", ZXingCppFormat.CODE_128),
+  //DATA_BAR("Data Bar", ZXingCppFormat.DATA_BAR),
+  //DATA_BAR_EXPANDED("Data Bar Expanded", ZXingCppFormat.DATA_BAR_EXPANDED),
+  //DATA_BAR_LIMITED("Data Bar Limited", ZXingCppFormat.DATA_BAR_LIMITED),
+  //DATA_MATRIX("Data Matrix", ZXingCppFormat.DATA_MATRIX),
+  //DX_FILM_EDGE("DXFilmEdge", ZXingCppFormat.DX_FILM_EDGE),
+  //EAN_8("EAN 8", ZXingCppFormat.EAN_8),
+  //EAN_13("EAN 13", ZXingCppFormat.EAN_13),
+  //ITF("ITF", ZXingCppFormat.ITF),
+  //MAXICODE("MaxiCode", ZXingCppFormat.MAXICODE),
+  //PDF_417("PDF 417", ZXingCppFormat.PDF_417),
+  //QR_CODE("QR Code", ZXingCppFormat.QR_CODE),
+  //MICRO_QR_CODE("Micro QR Code", ZXingCppFormat.MICRO_QR_CODE),
+  //RMQR_CODE("rMQR Code", ZXingCppFormat.RMQR_CODE),
+  //UPC_A("UPC A", ZXingCppFormat.UPC_A),
+  //UPC_E("UPC E", ZXingCppFormat.UPC_E);
+
+  companion object {
+    //fun fromString(value: String) =
+    //    ZxingCppBarcodeFormat.entries.find { it.displayName == value }
+    //        ?: ZxingCppBarcodeFormat.QR_CODE
+    fun fromString(value: String) =
+        ZxingBarcodeFormat.entries.find { it.displayName == value }
+            ?: ZxingBarcodeFormat.QR_CODE
+
+    //fun toFormats(values: Set<ZxingCppBarcodeFormat>): Set<ZXingCppFormat> =
+    //    values.map { it.zxingValue }.toSet()
   }
 }

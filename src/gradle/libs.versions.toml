@@ -1,5 +1,7 @@
 [versions]
 agp = "9.1.1"
+android = "3.0.2"
+barcodescannerview = "1.6.4"
 barcodeScanning = "18.3.1"
 core = "3.5.4"
 coreKtx = "1.18.0"
@@ -27,11 +29,13 @@ uiTilesExpressive = "3.1.0"
 uiTilesExtended = "3.1.0"
 
 [libraries]
+android = { module = "io.github.zxing-cpp:android", version.ref = "android" }
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 barcode-scanning = { module = "com.google.android.gms:play-services-mlkit-barcode-scanning", version.ref = "barcodeScanning" }
+barcodescannerview = { module = "com.github.markusfisch:BarcodeScannerView", version.ref = "barcodescannerview" }
 core = { module = "com.google.zxing:core", version.ref = "core" }
 icons-material-symbols-outlined-cmp = { module = "com.composables:icons-material-symbols-outlined-cmp", version.ref = "iconsMaterialSymbolsOutlinedCmp" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

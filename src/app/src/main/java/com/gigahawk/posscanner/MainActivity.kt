@@ -75,7 +75,10 @@ fun AppRoot() {
       )
     }
 
-    composable("main") { MainScreen(navController, hidKeyboardManager) }
+    composable("main") {
+      //MainScreen(navController, hidKeyboardManager)
+      MainScreen2(navController, hidKeyboardManager)
+    }
     composable("settings") { SettingsScreen(navController) }
     composable("devices") { DevicesScreen(navController) }
     composable("new_device") {

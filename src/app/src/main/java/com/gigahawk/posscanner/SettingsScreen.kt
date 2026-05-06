@@ -30,7 +30,6 @@ import com.alorma.compose.settings.ui.expressive.SettingsCheckbox
 import com.alorma.compose.settings.ui.expressive.SettingsGroup
 import com.alorma.compose.settings.ui.expressive.SettingsMenuLink
 import com.alorma.compose.settings.ui.expressive.SettingsRadioButton
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -46,7 +45,8 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
 
   val scanBackend by viewModel.scanBackend.collectAsState()
   val mlkitBarcodeFormats by viewModel.mlkitBarcodeFormats.collectAsState()
-  val zxingBarcodeFormat by viewModel.zxingBarcodeFormats.collectAsState()
+  val zxingBarcodeFormats by viewModel.zxingBarcodeFormats.collectAsState()
+  val zxingCppBarcodeFormats by viewModel.zxingCppBarcodeFormats.collectAsState()
 
   Scaffold(
       topBar = {
@@ -199,11 +199,11 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                   .forEach { format ->
                     SettingsCheckbox(
                         title = { Text(format.displayName) },
-                        state = zxingBarcodeFormat.any { it.zxingValue == format.zxingValue },
+                        state = zxingBarcodeFormats.any { it.zxingValue == format.zxingValue },
                         onCheckedChange = { newState: Boolean ->
                           scope.launch {
                             context.dataStore.edit { preferences ->
-                              val newFormats = zxingBarcodeFormat.toMutableSet()
+                              val newFormats = zxingBarcodeFormats.toMutableSet()
                               if (newState) {
                                 newFormats.add(format)
                               } else {
@@ -225,6 +225,38 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         },
                     )
                   }
+          ScanBackend.ZXING_CPP -> {}
+              //ZxingCppBarcodeFormat.entries
+              //    .sortedBy { it.displayName }
+              //    .forEach { format ->
+              //      SettingsCheckbox(
+              //          title = { Text(format.displayName) },
+              //          state = zxingCppBarcodeFormats.any { it.zxingValue == format.zxingValue },
+              //          onCheckedChange = { newState: Boolean ->
+              //            scope.launch {
+              //              context.dataStore.edit { preferences ->
+              //                val newFormats = zxingCppBarcodeFormats.toMutableSet()
+              //                if (newState) {
+              //                  newFormats.add(format)
+              //                } else {
+              //                  newFormats.remove(format)
+              //                }
+              //                if (newFormats.isEmpty()) {
+              //                  Toast.makeText(
+              //                          context,
+              //                          "At least one format must be enabled!",
+              //                          Toast.LENGTH_SHORT,
+              //                      )
+              //                      .show()
+              //                } else {
+              //                  preferences[PreferencesKeys.ZXING_CPP_BARCODE_FORMATS] =
+              //                      newFormats.map { it.displayName }.toSet()
+              //                }
+              //              }
+              //            }
+              //          },
+              //      )
+              //    }
         }
       }
     }

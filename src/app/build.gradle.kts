@@ -60,6 +60,8 @@ dependencies {
   implementation(libs.ui.tiles)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.reorderable)
+  //implementation(libs.android)
+  implementation(libs.barcodescannerview)
 
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.junit)
