@@ -11,7 +11,6 @@ import com.google.zxing.BarcodeFormat as ZXingFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -27,7 +26,7 @@ fun <T, R> DataStore<Preferences>.asStateFlow(
       .map { transform(it[key] ?: defaultValue) }
       .stateIn(
           scope = scope,
-          started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+          started = SharingStarted.Eagerly,
           initialValue = transform(defaultValue),
       )
 }
@@ -52,7 +51,7 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
       dataStore.asStateFlow(
           viewModelScope,
           PreferencesKeys.SCAN_BACKEND,
-          ScanBackend.MLKIT.value,
+          MLKIT.value,
       ) {
         ScanBackend.fromInt(it)
       }
@@ -104,6 +103,15 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
           PreferencesKeys.OUTPUT_FORMAT,
           "$(OUT)",
       )
+
+  val codecErrorMode =
+      dataStore.asStateFlow(
+          viewModelScope,
+          PreferencesKeys.TEXT_DECODE_ERROR_MODE,
+          CodecErrorMode.IGNORE.value,
+      ) {
+        CodecErrorMode.fromInt(it)
+      }
 }
 
 enum class TriggerMode(val value: Int, val displayName: String, val description: String) {
@@ -190,5 +198,31 @@ enum class ZxingBarcodeFormat(val displayName: String, val zxingValue: ZXingForm
 
     fun toFormats(values: Set<ZxingBarcodeFormat>): Set<ZXingFormat> =
         values.map { it.zxingValue }.toSet()
+  }
+}
+
+enum class CodecErrorMode(val value: Int, val displayName: String, val description: String = "") {
+  STRICT(0, "Strict", "Throw an error an undecodable byte is encountered"),
+  IGNORE(1, "Ignore", "Do not print undecodable bytes"),
+  // This is OS dependent (Windows Alt-Code vs macOS Hex Input)
+  // REPLACE(2, "Replace", "Insert a � for each character that cannot be decoded"),
+  REPLACE(2, "Replace", "Insert a [?] for each undecodable byte"),
+  BACKSLASHREPLACE(
+      3,
+      "Backslash Replace",
+      "Represent each undecodable byte as \\xHH, where HH is the hex value of the byte",
+  ),
+  SURROGATEESCAPE(
+      4,
+      "Space",
+      "Represent each undecodable byte as U+DCHH, where HH is the hex value of the byte",
+  ),
+  // XMLCHARREFREPLACE(5, "XML/HTML Char Ref Replace", "Represent each undecodable byte as &#xHH;",
+  // ""),
+  // NAMEREPLACE(6, "Custom", "Set your own value"),
+  ;
+
+  companion object {
+    fun fromInt(value: Int) = CodecErrorMode.entries.find { it.value == value } ?: IGNORE
   }
 }

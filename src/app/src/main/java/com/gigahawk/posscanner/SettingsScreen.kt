@@ -42,6 +42,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
   val triggerMode by viewModel.triggerMode.collectAsState()
   val scanSuffix by viewModel.scanSuffix.collectAsState()
   val reportDelayMs by viewModel.reportDelayMs.collectAsState()
+  val codecErrorMode by viewModel.codecErrorMode.collectAsState()
 
   val scanBackend by viewModel.scanBackend.collectAsState()
   val mlkitBarcodeFormats by viewModel.mlkitBarcodeFormats.collectAsState()
@@ -116,6 +117,21 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             }
           },
       )
+
+      SettingsGroup(title = { Text("Text Decoding Error Handling:") }) {
+        CodecErrorMode.entries.forEach { mode ->
+          SettingsRadioButton(
+              title = { Text(mode.displayName) },
+              subtitle = { Text(mode.description) },
+              state = mode.value == codecErrorMode.value,
+              onClick = {
+                scope.launch {
+                  context.dataStore.edit { it[PreferencesKeys.TEXT_DECODE_ERROR_MODE] = mode.value }
+                }
+              },
+          )
+        }
+      }
 
       SettingsMenuLink(
           title = { Text("Output Format") },

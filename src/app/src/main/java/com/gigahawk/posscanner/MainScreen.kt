@@ -84,6 +84,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
+import com.google.zxing.NotFoundException
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import java.util.Hashtable
@@ -258,6 +259,8 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
         val formats = ZxingBarcodeFormat.toFormats(formatsSet).toList()
         val hints = Hashtable<DecodeHintType, Any?>(2)
         hints[DecodeHintType.POSSIBLE_FORMATS] = formats
+        // Set character set to UTF-8 to match MLKit
+        hints[DecodeHintType.CHARACTER_SET] = "UTF-8"
 
         zxingReader = MultiFormatReader()
         zxingReader!!.setHints(hints)
@@ -353,10 +356,9 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
       imageProxy.close()
       return
     }
-    if (scanBackend.value == ScanBackend.MLKIT) {
-      processWithMlKit(imageProxy)
-    } else {
-      processWithZxing(imageProxy)
+    when (scanBackend.value) {
+      ScanBackend.MLKIT -> processWithMlKit(imageProxy)
+      ScanBackend.ZXING -> processWithZxing(imageProxy)
     }
   }
 
@@ -372,12 +374,26 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
       scanner
           .process(image)
           .addOnSuccessListener { barcodes ->
-            barcodes.firstOrNull()?.rawValue?.let { result ->
+            barcodes.firstOrNull()?.let { barcode ->
+              val out: String
+              // Always prefer raw bytes
+              if (barcode.rawValue != null) {
+                out = decodeString(barcode.rawValue!!, codecErrorMode.value)
+                Log.d("CameraPreview", "Found barcode with MLKIT: $out")
+              } else if (barcode.rawBytes != null) {
+                out = decodeString(barcode.rawBytes!!, codecErrorMode.value)
+                Log.w("CameraPreview", "Found barcode with MLKIT with binary only result: $out")
+              } else {
+                Log.e("CameraPreview", "Found barcode with MLKIT with no result")
+                return@let
+              }
+              Log.d("CameraPreview", "Format 06 decode: ${decodeFormat06(out)}")
+
               val currentTime = System.currentTimeMillis()
-              if (result != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
-                Log.d("CameraPreview", "Found barcode with MLKIT: $result")
-                _scanResult.value = result
-                lastScanResult = result
+              if (out != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
+                Log.d("CameraPreview", "Updating scan result: $out")
+                _scanResult.value = out
+                lastScanResult = out
                 lastScanTime = currentTime
               }
             }
@@ -406,13 +422,25 @@ class CameraPreviewViewModel(application: Application) : SettingsViewModel(appli
       try {
         val result = reader.decodeWithState(bitmap)
         val currentTime = System.currentTimeMillis()
-        if (result.text != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
-          Log.d("CameraPreview", "Found barcode with ZXING: ${result.text}")
-          _scanResult.value = result.text
-          lastScanResult = result.text
+        val out: String
+        if (result.text != null) {
+          out = decodeString(result.text!!, codecErrorMode.value)
+          Log.d("CameraPreview", "Found barcode with ZXING: $out")
+        } else if (result.rawBytes != null) {
+          out = decodeString(result.rawBytes!!, codecErrorMode.value)
+          Log.w("CameraPreview", "Found barcode with ZXING with binary only result: $out")
+        } else {
+          Log.e("CameraPreview", "Found barcode with ZXING with no result")
+          return@let
+        }
+        Log.d("CameraPreview", "Format 06 decode: ${decodeFormat06(out)}")
+
+        if (out != lastScanResult || currentTime - lastScanTime > COOLDOWN_MS) {
+          _scanResult.value = out
+          lastScanResult = out
           lastScanTime = currentTime
         }
-      } catch (e: Exception) {
+      } catch (e: NotFoundException) {
         if (triggerMode.value == TriggerMode.PRESS) {
           Log.d("CameraPreview", "No barcode found, sending empty string")
         }

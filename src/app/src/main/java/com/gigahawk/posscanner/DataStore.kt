@@ -19,6 +19,8 @@ object PreferencesKeys {
   val SCAN_SUFFIX = intPreferencesKey("scan_suffix")
   val SCAN_SUFFIX_CUSTOM = stringPreferencesKey("scan_suffix_custom")
 
+  val TEXT_DECODE_ERROR_MODE = intPreferencesKey("text_decode_error_mode")
+
   val REPORT_DELAY_MS = intPreferencesKey("report_delay_ms")
 
   val MLKIT_BARCODE_FORMATS = stringSetPreferencesKey("mlkit_barcode_formats")
