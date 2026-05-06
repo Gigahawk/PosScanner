@@ -1,11 +1,14 @@
 package com.gigahawk.posscanner
 
+import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.Charset
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import kotlinx.serialization.Serializable
 
 fun decodeString(
     encoded: ByteArray,
@@ -126,4 +129,16 @@ fun getFormat06DataStream(input: String): String? {
   // DigiKey barcodes don't seem to contain the trailer???
   // if (!input.endsWith(trailer)) return null
   return input.substring(header.length).removeSuffix(trailer)
+}
+
+fun showToast(context: Context, text: String, duration: Int = Toast.LENGTH_SHORT) {
+  Toast.makeText(context, text, duration).show()
+}
+
+@Serializable
+data class UniqueString(
+    var text: String,
+    val id: String = java.util.UUID.randomUUID().toString(),
+) {
+  fun withNewId() = copy(id = java.util.UUID.randomUUID().toString())
 }

@@ -12,9 +12,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.gigahawk.posscanner.ui.theme.PosScannerTheme
 import kotlinx.coroutines.flow.map
 
@@ -91,6 +93,21 @@ fun AppRoot() {
         navController.navigate("main")
       }
       NewDeviceScreen(navController, hidKeyboardManager)
+    }
+    composable("output_format_selection") { OutputFormatSelectionScreen(navController) }
+    composable(
+        "new_output_format?itemIndex={itemIndex}",
+        arguments =
+            listOf(
+                navArgument("itemIndex") {
+                  type = NavType.IntType
+                  nullable = false
+                  defaultValue = -1
+                }
+            ),
+    ) { backStackEntry ->
+      val itemIndex = backStackEntry.arguments?.getInt("itemIndex") ?: -1
+      NewOutputFormatScreen(navController, itemIndex = itemIndex)
     }
   }
 }

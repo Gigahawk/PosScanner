@@ -136,9 +136,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
       SettingsMenuLink(
           title = { Text("Output Format") },
           subtitle = { Text("Set the format of the output string") },
-          onClick = {
-            // navController.navigate("output_format")
-          },
+          onClick = { navController.navigate("output_format_selection") },
       )
 
       Text(

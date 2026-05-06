@@ -26,5 +26,7 @@ object PreferencesKeys {
   val MLKIT_BARCODE_FORMATS = stringSetPreferencesKey("mlkit_barcode_formats")
   val ZXING_BARCODE_FORMATS = stringSetPreferencesKey("zxing_barcode_formats")
 
-  val OUTPUT_FORMAT = stringPreferencesKey("output_format")
+  val OUTPUT_FORMAT = stringPreferencesKey("output_format_uuid")
+
+  val OUTPUT_FORMATS = stringPreferencesKey("output_formats")
 }

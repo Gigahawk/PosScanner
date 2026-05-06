@@ -1,0 +1,5 @@
+package com.gigahawk.posscanner
+
+val DEFAULT_OUTPUT_FORMAT = UniqueString("{{OUTPUT}}")
+val DEFAULT_OUTPUT_FORMAT2 = UniqueString("{{OUTPUT_HEX}}")
+val DEFAULT_OUTPUT_FORMATS = listOf(DEFAULT_OUTPUT_FORMAT, DEFAULT_OUTPUT_FORMAT2)

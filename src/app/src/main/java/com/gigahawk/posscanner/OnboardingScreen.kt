@@ -141,19 +141,18 @@ fun rememberPermissionLauncher(
       val shouldShowRationale =
           ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
       if (!shouldShowRationale) {
-        Toast.makeText(
-                context,
-                "Permission permanently denied. Please enable '$permission' in settings.",
-                Toast.LENGTH_LONG,
-            )
-            .show()
+        showToast(
+            context,
+            "Permission is required to continue. Please enable '$permission' in settings.",
+            Toast.LENGTH_LONG,
+        )
         val intent =
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
               data = Uri.fromParts("package", context.packageName, null)
             }
         context.startActivity(intent)
       } else {
-        Toast.makeText(context, "Permission is required to continue", Toast.LENGTH_SHORT).show()
+        showToast(context, "Permission is required to continue")
       }
     }
   }

@@ -1,6 +1,7 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -57,6 +58,8 @@ dependencies {
   implementation(libs.ui.tiles.expressive)
   implementation(libs.ui.tiles.extended)
   implementation(libs.ui.tiles)
+  implementation(libs.kotlinx.serialization.json)
+  implementation(libs.reorderable)
 
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.junit)

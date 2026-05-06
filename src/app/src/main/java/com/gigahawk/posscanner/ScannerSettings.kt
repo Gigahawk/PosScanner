@@ -3,6 +3,7 @@ package com.gigahawk.posscanner
 import android.app.Application
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gigahawk.posscanner.ScanBackend.MLKIT
@@ -13,6 +14,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 const val STATE_STOP_TIMEOUT_MS: Long = 5000
 
@@ -97,12 +101,49 @@ open class SettingsViewModel(application: Application) : AndroidViewModel(applic
         it.map { value -> ZxingBarcodeFormat.fromString(value) }.toSet()
       }
 
+  val outputFormats =
+      dataStore.asStateFlow(
+          viewModelScope,
+          PreferencesKeys.OUTPUT_FORMATS,
+          Json.encodeToString(DEFAULT_OUTPUT_FORMATS),
+      ) { jsonString ->
+        try {
+          Json.decodeFromString<List<UniqueString>>(jsonString)
+        } catch (e: Exception) {
+          DEFAULT_OUTPUT_FORMATS
+        }
+      }
+
+  fun saveOutputFormats(formats: List<UniqueString>) {
+    viewModelScope.launch {
+      dataStore.edit { prefs ->
+        prefs[PreferencesKeys.OUTPUT_FORMATS] = Json.encodeToString(formats)
+      }
+    }
+  }
+
+  fun getOutputFormatById(id: String): UniqueString? {
+    return outputFormats.value.find { it.id == id }
+  }
+
+  val outputFormatId =
+      dataStore.asStateFlow(viewModelScope, PreferencesKeys.OUTPUT_FORMAT, DEFAULT_OUTPUT_FORMAT.id)
+
+  fun saveOutputFormatId(id: String) {
+    if (getOutputFormatById(id) == null) {
+      return
+    }
+    viewModelScope.launch { dataStore.edit { prefs -> prefs[PreferencesKeys.OUTPUT_FORMAT] = id } }
+  }
+
   val outputFormat =
       dataStore.asStateFlow(
           viewModelScope,
           PreferencesKeys.OUTPUT_FORMAT,
-          "$(OUT)",
-      )
+          DEFAULT_OUTPUT_FORMAT.id,
+      ) {
+        getOutputFormatById(it)
+      }
 
   val codecErrorMode =
       dataStore.asStateFlow(
